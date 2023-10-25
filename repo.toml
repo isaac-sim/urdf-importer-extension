@@ -1,0 +1,66 @@
+########################################################################################################################
+# Repo tool base settings
+########################################################################################################################
+
+[repo]
+
+# Use the Kit Template repo configuration as a base. Only override things specific to the repo.
+import_configs = ["${root}/_repo/deps/repo_kit_tools/kit-template/repo.toml"]
+
+# Repository Name
+name = "omniverse-urdf-importer"
+
+[repo_build.msbuild]
+vs_version = "vs2019"
+
+
+[repo_build]
+# List of packman projects to pull (in order)
+fetch.packman_host_files_to_pull = [
+    "${root}/deps/host-deps.packman.xml",
+]
+
+fetch.packman_target_files_to_pull = [
+    "${root}/deps/kit-sdk.packman.xml",
+    "${root}/deps/rtx-plugins.packman.xml",
+    "${root}/deps/omni-physics.packman.xml",
+    "${root}/deps/kit-sdk-deps.packman.xml",
+    "${root}/deps/omni-usd-resolver.packman.xml",
+    "${root}/deps/ext-deps.packman.xml",
+]
+
+post_build.commands = [
+    # TODO, fix this?
+    # ["${root}/repo${shell_ext}", "stubgen", "-c", "${config}"]
+]
+
+
+[repo_docs]
+name = "Omniverse URDF Importer"
+project = "omniverse-urdf-importer"
+api_output_directory = "api"
+use_fast_doxygen_conversion=false
+sphinx_version = "4.5.0.2-py3.10-${platform}"
+sphinx_exclude_patterns = [
+    "_build",
+    "tools",
+    "VERSION.md",
+    "source/extensions/omni.importer.urdf/PACKAGE-LICENSES",
+]
+sphinx_conf_py_extra = """
+    autodoc_mock_imports = ["omni.client", "omni.kit"]
+    autodoc_member_order = 'bysource'
+"""
+
+
+[repo_package.packages."platform:windows-x86_64".docs]
+windows_max_path_length = 0
+
+
+[repo_publish_exts]
+enabled = true
+use_packman_to_upload_archive = false
+
+exts.include = [
+    "omni.importer.urdf",
+]

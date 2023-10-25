@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<robot name="test_mtl_stl">
+   <material name="my_mat">
+      <color rgba="0.8 0.0 0.0 1.0"/> <!-- rviz green color -->
+   </material>
+   
+   <link name="cube">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="test_mtl_stl/cube.stl" />
+         </geometry>      
+         <material name="my_mat" />
+      </visual>
+   </link>
+</robot>

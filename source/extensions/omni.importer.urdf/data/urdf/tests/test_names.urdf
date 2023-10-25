@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_names">
+    <link name="cube">
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="1 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 1 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="-1 0 -1" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+        <visual name="block_1">
+            <origin rpy="0 0 0" xyz="0 -1 1" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+        <visual name="block-1">
+            <origin rpy="0 0 0" xyz="0 0 -1" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+    </link>
+    <link name="01_number">
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+    </link>
+    <link name=" name with spaces">
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+    </link>
+    <link name="/name/with/slashes">
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+    </link>
+    <link name="another/name/with/slashes">
+        <visual name="block">
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="test_mtl/test_mtl.obj" />
+            </geometry>
+            <material name="gray"/>
+        </visual>
+    </link>
+    <joint name="01_joint" type="revolute">
+        <origin xyz="0 0 1" rpy="0 0 0" />
+        <parent link="cube" />
+        <child link="01_number" />
+        <axis xyz="0 0 1" />
+        <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+    <joint name=" joint with spaces" type="revolute">
+        <origin xyz="0 0 1" rpy="0 0 0" />
+        <parent link="01_number" />
+        <child link=" name with spaces" />
+        <axis xyz="0 0 1" />
+        <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+    <joint name="/joint/with/slashes" type="revolute">
+        <origin xyz="0 0 1" rpy="0 0 0" />
+        <parent link="01_number" />
+        <child link="/name/with/slashes" />
+        <axis xyz="0 0 1" />
+        <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+    <joint name="another/joint/with/slashes" type="revolute">
+        <origin xyz="0 0 1" rpy="0 0 0" />
+        <parent link="/name/with/slashes" />
+        <child link="another/name/with/slashes" />
+        <axis xyz="0 0 1" />
+        <limit lower="0" upper="0" effort="0" velocity="0" />
+    </joint>
+</robot>

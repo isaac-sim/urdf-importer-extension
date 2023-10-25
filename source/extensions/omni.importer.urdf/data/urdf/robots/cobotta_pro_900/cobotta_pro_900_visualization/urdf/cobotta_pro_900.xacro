@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="cobotta_pro_900" xmlns:xacro="http://www.ros.org/wiki/xacro">
+	<link name="world"/>
+	<joint name="joint_w" type="fixed">
+		<parent link="world"/>
+		<child link="base_link"/>
+	</joint>
+	<link name="base_link">
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/base_link.dae" scale="1 1 1"/>
+			</geometry>
+		</visual>
+		<collision>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/base_link.dae" scale="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1"/>
+			<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+			<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+		</inertial>
+	</link>
+
+	<link name="J1">
+	<visual>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J1.dae" scale="1 1 1"/>
+		</geometry>
+	</visual>
+	<collision>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J1.dae" scale="1 1 1"/>
+		</geometry>
+	</collision>
+	<inertial>
+		<mass value="1"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+		<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+	</inertial>
+	</link>
+		<joint name="joint_1" type="revolute">
+		<parent link="base_link"/>
+		<child link="J1"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+		<axis xyz="-0.000000 -0.000000 1.000000"/>
+		<limit effort="1" lower="-4.71238898038469" upper="4.71238898038469" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_1">
+	<type>transmission_interface/SimpleTransmission</type>
+	<joint name="joint_1">
+		<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+	</joint>
+	<actuator name="motor_1">
+		<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		<mechanicalReduction>1</mechanicalReduction>
+	</actuator>
+	</transmission>
+
+	<link name="J2">
+	<visual>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J2.dae" scale="1 1 1"/>
+		</geometry>
+	</visual>
+	<collision>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J2.dae" scale="1 1 1"/>
+		</geometry>
+	</collision>
+	<inertial>
+		<mass value="1"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+		<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+	</inertial>
+	</link>
+	<joint name="joint_2" type="revolute">
+		<parent link="J1"/>
+		<child link="J2"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.210000"/>
+		<axis xyz="-0.000000 1.000000 -0.000000"/>
+		<limit effort="1" lower="-2.61799387799149" upper="2.61799387799149" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_2">
+		<type>transmission_interface/SimpleTransmission</type>
+		<joint name="joint_2">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		</joint>
+		<actuator name="motor_2">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+			<mechanicalReduction>1</mechanicalReduction>
+		</actuator>
+	</transmission>
+
+	<link name="J3">
+	<visual>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J3.dae" scale="1 1 1"/>
+		</geometry>
+	</visual>
+	<collision>
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+		<geometry>
+			<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J3.dae" scale="1 1 1"/>
+		</geometry>
+	</collision>
+	<inertial>
+		<mass value="1"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+		<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+	</inertial>
+	</link>
+	<joint name="joint_3" type="revolute">
+		<parent link="J2"/>
+		<child link="J3"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.510000"/>
+		<axis xyz="-0.000000 1.000000 -0.000000"/>
+		<limit effort="1" lower="-2.61799387799149" upper="2.61799387799149" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_3">
+		<type>transmission_interface/SimpleTransmission</type>
+		<joint name="joint_3">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		</joint>
+		<actuator name="motor_3">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+			<mechanicalReduction>1</mechanicalReduction>
+		</actuator>
+	</transmission>
+
+	<link name="J4">
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J4.dae" scale="1 1 1"/>
+			</geometry>
+		</visual>
+		<collision>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J4.dae" scale="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1"/>
+			<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+			<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+		</inertial>
+	</link>
+	<joint name="joint_4" type="revolute">
+		<parent link="J3"/>
+		<child link="J4"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 -0.030000 -0.720000"/>
+		<axis xyz="-0.000000 -0.000000 1.000000"/>
+		<limit effort="1" lower="-4.71238898038469" upper="4.71238898038469" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_4">
+		<type>transmission_interface/SimpleTransmission</type>
+		<joint name="joint_4">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		</joint>
+		<actuator name="motor_4">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+			<mechanicalReduction>1</mechanicalReduction>
+		</actuator>
+	</transmission>
+
+	<link name="J5">
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J5.dae" scale="1 1 1"/>
+			</geometry>
+		</visual>
+		<collision>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J5.dae" scale="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1"/>
+			<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+			<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+		</inertial>
+	</link>
+	<joint name="joint_5" type="revolute">
+		<parent link="J4"/>
+		<child link="J5"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.030000 1.110000"/>
+		<axis xyz="-0.000000 1.000000 -0.000000"/>
+		<limit effort="1" lower="-2.61799387799149" upper="2.61799387799149" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_5">
+		<type>transmission_interface/SimpleTransmission</type>
+		<joint name="joint_5">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		</joint>
+		<actuator name="motor_5">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+			<mechanicalReduction>1</mechanicalReduction>
+		</actuator>
+	</transmission>
+
+	<link name="J6">
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/visual/J6.dae" scale="1 1 1"/>
+			</geometry>
+		</visual>
+		<collision>
+			<origin rpy="0 0 0" xyz="0 0 0"/>
+			<geometry>
+				<mesh filename="package://cobotta_pro_900_visualization/meshes/collision/J6.dae" scale="1 1 1"/>
+			</geometry>
+		</collision>
+		<inertial>
+			<mass value="1"/>
+			<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.000000 0.000000"/>
+			<inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+		</inertial>
+	</link>
+	<joint name="joint_6" type="revolute">
+		<parent link="J5"/>
+		<child link="J6"/>
+		<origin rpy="0.000000 0.000000 0.000000" xyz="0.000000 0.120000 0.160000"/>
+		<axis xyz="-0.000000 -0.000000 1.000000"/>
+		<limit effort="1" lower="-6.28318530717959" upper="6.28318530717959" velocity="1"/>
+		<dynamics damping="0" friction="0"/>
+	</joint>
+	<transmission name="trans_6">
+		<type>transmission_interface/SimpleTransmission</type>
+		<joint name="joint_6">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+		</joint>
+		<actuator name="motor_6">
+			<hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+			<mechanicalReduction>1</mechanicalReduction>
+		</actuator>
+	</transmission>
+
+	<xacro:include filename="$(find onrobot_rg6_visualization)/urdf/onrobot_rg6_model.xacro" />
+	<joint name="joint_tcp_fixed" type="fixed">
+	<parent link="J6"/>
+	<child link="onrobot_rg6_base_link"/>
+	<origin rpy="0 0 0" xyz="0 0 0"/>
+	</joint>
+</robot>

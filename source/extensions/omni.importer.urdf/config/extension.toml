@@ -1,0 +1,70 @@
+[core]
+reloadable = true
+order = 0
+
+[package]
+version = "1.1.4"
+category = "Simulation"
+title = "Omniverse URDF Importer"
+description = "URDF Importer"
+repository = "https://github.com/NVIDIA-Omniverse/urdf-importer-extension"
+authors = ["Isaac Sim Team"]
+keywords = ["urdf", "importer", "isaac"]
+changelog = "docs/CHANGELOG.md"
+readme = "docs/Overview.md"
+icon = "data/icon.png"
+writeTarget.kit = true
+preview_image = "data/preview.png"
+
+[dependencies]
+"omni.kit.commands" = {}
+"omni.kit.uiapp" = {}
+"omni.kit.window.filepicker" = {}
+"omni.kit.window.content_browser" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.pip_archive" = {} # pulls in pillow
+"omni.physx" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.window.property" = {}
+
+[[python.module]]
+name = "omni.importer.urdf"
+
+[[python.module]]
+name = "omni.importer.urdf.tests"
+
+[[python.module]]
+name = "omni.importer.urdf.scripts.ui"
+
+[[python.module]]
+name = "omni.importer.urdf.scripts.samples.import_carter"
+
+[[python.module]]
+name = "omni.importer.urdf.scripts.samples.import_franka"
+
+[[python.module]]
+name = "omni.importer.urdf.scripts.samples.import_kaya"
+
+[[python.module]]
+name = "omni.importer.urdf.scripts.samples.import_ur10"
+
+[[native.plugin]]
+path = "bin/*.plugin"
+recursive = false
+
+
+[[test]]
+# this is to catch issues where our assimp is out of sync with the one that comes with
+# asset importer as this can cause segfaults due to binary incompatibility.
+dependencies = ["omni.kit.tool.asset_importer"]
+
+stdoutFailPatterns.exclude = [
+    "*extension object is still alive, something holds a reference on it*", # exclude warning as failure
+]
+args = ["--/app/file/ignoreUnsavedOnExit=1"]
+
+[documentation]
+pages = [
+    "docs/Overview.md",
+    "docs/CHANGELOG.md",
+]
