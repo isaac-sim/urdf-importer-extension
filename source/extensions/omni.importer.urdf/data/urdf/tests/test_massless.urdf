@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_massless">
+   <material name="gray">
+      <color rgba="0.2 0.2 0.2 1.0"/>
+   </material>
+     <link name="root_link"/>
+
+  <joint name="root_to_base" type="fixed">
+    <parent link="root_link"/>
+    <child link="no_mass_no_collision_no_inertia"/>
+  </joint>
+   <link name="no_mass_no_collision_no_inertia">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <box size="1 1 1" />
+         </geometry>
+         <material name="gray"/>
+      </visual>
+   </link>
+   <link name="mass_no_collision_no_inertia">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <box size="1 1 1" />
+         </geometry>
+      </visual>
+      <inertial>
+         <mass value="10"/>
+      </inertial>
+   </link>
+   <link name="mass_collision_no_inertia">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <box size="1 1 1" />
+         </geometry>
+      </visual>
+      <collision>
+         <geometry>
+         <box size="0.3 .3 .2"/>
+         </geometry>
+      </collision>
+      <inertial>
+         <mass value="10"/>
+      </inertial>
+   </link>
+   <joint name="fixed2" type="fixed">
+      <parent link="no_mass_no_collision_no_inertia"/>
+      <child link="mass_no_collision_no_inertia"/>
+   </joint>
+   <joint name="fixed3" type="fixed">
+      <parent link="mass_no_collision_no_inertia"/>
+      <child link="mass_collision_no_inertia"/>
+    </joint>
+</robot>

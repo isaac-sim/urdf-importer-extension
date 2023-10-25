@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_missing">
+   <material name="gray">
+      <color rgba="0.2 0.2 0.2 1.0"/>
+   </material>
+   <link name="cube">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="does_not/exist.obj" />
+         </geometry>
+         <material name="gray"/>
+      </visual>
+   </link>
+   <link name="cube2">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="does_not/exist.obj" />
+         </geometry>         
+      </visual>
+   </link>
+   <joint name="fixed" type="fixed">
+      <parent link="cube"/>
+      <child link="cube2"/>
+    </joint>
+</robot>

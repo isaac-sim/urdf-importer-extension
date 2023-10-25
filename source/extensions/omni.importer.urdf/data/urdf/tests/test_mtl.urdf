@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_mtl">
+   <link name="cube">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="test_mtl/test_mtl.obj" />
+         </geometry>
+         <material name="gray"/>
+      </visual>
+   </link>
+</robot>

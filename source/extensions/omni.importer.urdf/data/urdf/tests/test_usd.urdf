@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_usd">
+   <link name="cube">
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="test_usd/cylinder.usda" scale="0.01 0.01 0.01"/>
+         </geometry>
+         <material name="gray"/>
+      </visual>
+      <visual>
+         <origin rpy="0 0 0" xyz="0 0 0" />
+         <geometry>
+            <mesh filename="test_usd/torus.usd" scale="0.01 0.01 0.01"/>
+         </geometry>
+         <material name="gray"/>
+      </visual>
+   </link>
+</robot>

@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="onrobot_rg6_base_link" params="prefix">
+    <link name="${prefix}onrobot_rg6_base_link">
+      <inertial>
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+        <mass value="0.7" />
+        <inertia ixx="1.0E-03" ixy="1.0E-06" ixz="1.0E-06" iyy="1.0E-03" iyz="1.0E-06" izz="1.0E-03" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://onrobot_rg6_visualization/meshes/visual/base_link.stl" />
+        </geometry>
+        <material name="">
+          <color rgba="0.8 0.8 0.8 1" />
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://onrobot_rg6_visualization/meshes/collision/base_link.stl" />
+        </geometry>
+      </collision>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="finger_joints" params="prefix fingerprefix reflect">
+    <xacro:inner_knuckle_joint prefix="${prefix}" fingerprefix="${fingerprefix}" reflect="${reflect}"/>
+    <xacro:inner_finger_joint prefix="${prefix}" fingerprefix="${fingerprefix}"/>
+  </xacro:macro>
+
+  <xacro:macro name="finger_links" params="prefix fingerprefix">
+    <xacro:outer_knuckle prefix="${prefix}" fingerprefix="${fingerprefix}"/>
+    <xacro:inner_knuckle prefix="${prefix}" fingerprefix="${fingerprefix}"/>
+    <xacro:inner_finger prefix="${prefix}" fingerprefix="${fingerprefix}"/>
+  </xacro:macro>
+</robot>

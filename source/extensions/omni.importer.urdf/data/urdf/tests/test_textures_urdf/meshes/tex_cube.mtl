@@ -1,0 +1,17 @@
+# Blender MTL File: 'tex_cube.blend'
+# Material Count: 1
+
+newmtl Material
+Ns 323.999994
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Bump textures/normal_map.png
+map_Kd ./textures/base_color.png
+map_Ke ../meshes/textures/emission_map.png
+map_Ns textures/roughness_map.png
+refl textures/metallic_map.png
