@@ -55,6 +55,8 @@ bool parseJoints(const tinyxml2::XMLElement& root, std::map<std::string, UrdfJoi
 
 bool parseUrdf(const std::string& urdfPackagePath, const std::string& urdfFileRelativeToPackage, UrdfRobot& urdfRobot);
 
+bool findRootLink(const std::map<std::string, UrdfLink>& urdfLinks, const std::map<std::string, UrdfJoint>& urdfJoints, std::string& rootLinkName);
+
 } // namespace urdf
 }
 }

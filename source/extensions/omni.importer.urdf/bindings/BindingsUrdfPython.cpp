@@ -323,6 +323,7 @@ PYBIND11_MODULE(_urdf, m)
 
     py::class_<UrdfRobot>(m, "UrdfRobot", "")
         .def_readwrite("name", &UrdfRobot::name, "")
+        .def_readwrite("root_link", &UrdfRobot::rootLink, "")
         .def_readwrite("links", &UrdfRobot::links, "")
         .def_readwrite("joints", &UrdfRobot::joints, "")
         .def_readwrite("materials", &UrdfRobot::materials, "")

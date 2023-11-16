@@ -219,6 +219,7 @@ struct UrdfJoint
 struct UrdfRobot
 {
     std::string name;
+    std::string rootLink;
     std::map<std::string, UrdfLink> links;
     std::map<std::string, UrdfJoint> joints;
     std::map<std::string, UrdfMaterial> materials;

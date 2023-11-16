@@ -1121,6 +1121,31 @@ bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJ
 }
 
 
+bool findRootLink(const std::map<std::string, UrdfLink>& urdfLinks, const std::map<std::string, UrdfJoint>& urdfJoints, std::string& rootLinkName)
+{
+    // Create a set to store all child links
+    std::unordered_set<std::string> childLinkNames;
+    // Iterate through joints and add child links to the set
+    for (const auto& joint : urdfJoints) {
+        childLinkNames.insert(joint.second.childLinkName);
+    }
+    // Iterate through joints and find the link with no parent
+    for (const auto& joint : urdfJoints) {
+        // If the parent link is not in the set of child links, it is the root link
+        if (childLinkNames.find(joint.second.parentLinkName) == childLinkNames.end()) {
+            rootLinkName = makeValidUSDIdentifier(joint.second.parentLinkName);
+            // check if root link exist in parsed links
+            if (urdfLinks.find(rootLinkName) == urdfLinks.end()) {
+                printf("*** Root link %s not found in links \n", rootLinkName.c_str());
+                return false;
+            }
+            // return true if root link is found
+            return true;
+        }
+    }
+    return false;
+}
+
 // bool parseSpringGroup(const XMLElement& element, UrdfSpringGroup& springGroup)
 // {
 //     auto start = element.Attribute("start");
@@ -1238,6 +1263,10 @@ bool parseRobot(const XMLElement& root, UrdfRobot& urdfRobot)
         return false;
     }
     if (!parseJoints(root, urdfRobot.joints))
+    {
+        return false;
+    }
+    if (!findRootLink(urdfRobot.links, urdfRobot.joints, urdfRobot.rootLink))
     {
         return false;
     }

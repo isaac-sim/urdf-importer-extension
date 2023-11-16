@@ -1085,15 +1085,6 @@ std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot
     gprim.AddOrientOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfQuatd(1, 0, 0, 0));
     gprim.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
 
-    pxr::UsdPhysicsArticulationRootAPI physicsSchema = pxr::UsdPhysicsArticulationRootAPI::Apply(robotPrim.GetPrim());
-
-    pxr::PhysxSchemaPhysxArticulationAPI physxSchema = pxr::PhysxSchemaPhysxArticulationAPI::Apply(robotPrim.GetPrim());
-    physxSchema.CreateEnabledSelfCollisionsAttr().Set(config.selfCollision);
-
-    // These are reasonable defaults, might want to expose them via the import config in the future.
-    physxSchema.CreateSolverPositionIterationCountAttr().Set(32);
-    physxSchema.CreateSolverVelocityIterationCountAttr().Set(16);
-
     if (config.makeDefaultPrim)
     {
         stage->SetDefaultPrim(robotPrim.GetPrim());
@@ -1131,6 +1122,18 @@ std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot
     }
 
     addLinksAndJoints(stage, Transform(), chain.baseNode.get(), urdfRobot, robotPrim);
+
+    // Add articulation root prim on the actual root link
+    pxr::SdfPath rootLinkPrimPath = pxr::SdfPath(primPath.GetString() + "/" + urdfRobot.rootLink);
+    pxr::UsdPrim rootLinkPrim = stage->GetPrimAtPath(rootLinkPrimPath);
+    // Apply articulation root schema
+    pxr::UsdPhysicsArticulationRootAPI physicsSchema = pxr::UsdPhysicsArticulationRootAPI::Apply(rootLinkPrim);
+    pxr::PhysxSchemaPhysxArticulationAPI physxSchema = pxr::PhysxSchemaPhysxArticulationAPI::Apply(rootLinkPrim);
+    // Set schema attributes
+    physxSchema.CreateEnabledSelfCollisionsAttr().Set(config.selfCollision);
+    // These are reasonable defaults, might want to expose them via the import config in the future.
+    physxSchema.CreateSolverPositionIterationCountAttr().Set(32);
+    physxSchema.CreateSolverVelocityIterationCountAttr().Set(16);
 
     return primPath.GetString();
 }
