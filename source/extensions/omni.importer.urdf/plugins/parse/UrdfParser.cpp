@@ -1123,6 +1123,11 @@ bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJ
 
 bool findRootLink(const std::map<std::string, UrdfLink>& urdfLinks, const std::map<std::string, UrdfJoint>& urdfJoints, std::string& rootLinkName)
 {
+    // Deal with degenerate case where there are no joints
+    if (urdfJoints.empty()) {
+        rootLinkName = makeValidUSDIdentifier(urdfLinks.begin()->second.name);
+        return true;
+    }
     // Create a set to store all child links
     std::unordered_set<std::string> childLinkNames;
     // Iterate through joints and add child links to the set
