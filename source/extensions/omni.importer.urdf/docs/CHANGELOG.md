@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0] - 2023-11-16
+
+### Fixed
+- Fixed setting of articulation root on the actual link prim instead of the default prim. This
+  is needed to deal with letting PhysX parser decide what is the root prim for floating-base systems.
+
 ## [1.1.4] - 2023-10-18
 
 ### Changed
