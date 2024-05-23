@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,20 +15,20 @@
 
 #include "MeshImporter.h"
 
-#include <carb/logging/Log.h>
-
 #include "../core/PathUtils.h"
 #include "ImportHelpers.h"
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
 
+#include <carb/logging/Log.h>
+
 
 #if __has_include(<filesystem>)
-  #include <filesystem>
+#    include <filesystem>
 #elif __has_include(<experimental/filesystem>)
-  #include <experimental/filesystem>
+#    include <experimental/filesystem>
 #else
-  error "Missing the <filesystem> header."
+error "Missing the <filesystem> header."
 #endif
 
 #include "../utils/Path.h"

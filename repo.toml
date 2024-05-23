@@ -13,6 +13,35 @@ name = "omniverse-urdf-importer"
 [repo_build.msbuild]
 vs_version = "vs2019"
 
+[repo_format]
+command = "format"
+entry_point = "omni.repo.format:setup_repo_tool"
+
+license_preamble = '''
+SPDX-FileCopyrightText: Copyright (c) {years}, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+'''
+
+# license_text will always be after the spdx_license_text or copyright line, separated by a single newline
+license_text = '''
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+########################################################################################################################
+# Custom scripts for repo_ci
+########################################################################################################################
+
+########################################################################################################################
 
 [repo_build]
 # List of packman projects to pull (in order)
@@ -34,6 +63,20 @@ post_build.commands = [
     # ["${root}/repo${shell_ext}", "stubgen", "-c", "${config}"]
 ]
 
+########################################################################################################################
+# Packaging
+########################################################################################################################
+[repo_changelog]
+[repo_changelog.packages.urdf_importer]
+enabled = false
+
+[repo_publish]
+enabled = false
+########################################################################################################################
+# Testing
+########################################################################################################################
+
+
 
 [repo_docs]
 name = "Omniverse URDF Importer"
@@ -53,14 +96,20 @@ sphinx_conf_py_extra = """
 """
 
 
-[repo_package.packages."platform:windows-x86_64".docs]
-windows_max_path_length = 0
-
-
 [repo_publish_exts]
 enabled = true
 use_packman_to_upload_archive = false
 
+kit_path = "${root}/_build/$platform/$config/kit/kit${exe_ext}"
+
+publish_root = "${root}/_build/$platform/$config"
+
+# disable signing as it's not common practice for extension publishing atm
+signing.enabled = false
+
+ext_folders = [
+  "${publish_root}/exts"
+]
 exts.include = [
     "omni.importer.urdf",
 ]

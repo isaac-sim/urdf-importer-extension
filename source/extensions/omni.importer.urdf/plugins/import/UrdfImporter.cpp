@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,26 +22,28 @@
 // #include "../../helpers.h"
 
 
+#include "ImportHelpers.h"
 #include "assimp/Importer.hpp"
 #include "assimp/cfileio.h"
 #include "assimp/cimport.h"
 #include "assimp/postprocess.h"
 #include "assimp/scene.h"
 
-
-
-#include "ImportHelpers.h"
-
 #include <carb/logging/Log.h>
 
+#include <omni/ext/ExtensionsUtils.h>
+#include <omni/ext/IExtensions.h>
+#include <omni/kit/IApp.h>
 #include <physicsSchemaTools/UsdTools.h>
 #include <physxSchema/jointStateAPI.h>
 #include <physxSchema/physxArticulationAPI.h>
 #include <physxSchema/physxCollisionAPI.h>
 #include <physxSchema/physxJointAPI.h>
-#include <physxSchema/physxTendonAxisRootAPI.h>
-#include <physxSchema/physxTendonAxisAPI.h>
+#include <physxSchema/physxMimicJointAPI.h>
 #include <physxSchema/physxSceneAPI.h>
+#include <pxr/usd/sdf/layer.h>
+#include <pxr/usd/sdf/primSpec.h>
+#include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdPhysics/articulationRootAPI.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/driveAPI.h>
@@ -55,10 +57,21 @@
 #include <pxr/usd/usdPhysics/rigidBodyAPI.h>
 #include <pxr/usd/usdPhysics/scene.h>
 #include <pxr/usd/usdPhysics/sphericalJoint.h>
+#include <pxr/usd/usdUtils/authoring.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
+#include <OmniClient.h>
+#include <cmath>
+#include <fstream>
+#include <iostream>
 
 namespace
 {
-    constexpr float kNegligibleMass = 1.0e-6f;
+constexpr float kNegligibleMass = 1.0e-6f;
+constexpr float kSmallEps = 1.0e-5f;
 }
 namespace omni
 {
@@ -67,6 +80,25 @@ namespace importer
 namespace urdf
 {
 
+
+void saveJsonToFile(const rapidjson::Document& jsonDoc, const std::string& filename)
+{
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    jsonDoc.Accept(writer);
+
+    std::ofstream outFile(filename);
+    if (outFile.is_open())
+    {
+        outFile << buffer.GetString();
+        outFile.close();
+        CARB_LOG_INFO("JSON saved to %s", filename.c_str());
+    }
+    else
+    {
+        CARB_LOG_ERROR("Error saving JSON to file: %s", filename.c_str());
+    }
+}
 
 UrdfRobot UrdfImporter::createAsset()
 {
@@ -91,6 +123,29 @@ UrdfRobot UrdfImporter::createAsset()
 }
 
 const char* subdivisionschemes[4] = { "catmullClark", "loop", "bilinear", "none" };
+
+pxr::UsdPrim FindPrimByNameAndType(const pxr::UsdStageRefPtr& stage,
+                                   const std::string& primName,
+                                   const pxr::TfType& primType)
+{
+    // Define the root path for traversal
+    pxr::SdfPath rootPath = pxr::SdfPath::AbsoluteRootPath();
+
+    // Define the range for traversal with type filtering
+    pxr::UsdPrimRange range(stage->GetPrimAtPath(rootPath));
+
+    // Iterate over prims within the range
+    for (const pxr::UsdPrim& prim : range)
+    {
+        // Check if the prim matches the given name
+        if (prim.GetName() == primName && prim.IsA(primType))
+        {
+            return prim;
+        }
+    }
+    // If the prim is not found, return an invalid prim
+    return pxr::UsdPrim();
+}
 
 pxr::UsdPrim addMesh(pxr::UsdStageWeakPtr stage,
                      UrdfGeometry geometry,
@@ -129,9 +184,28 @@ pxr::UsdPrim addMesh(pxr::UsdStageWeakPtr stage,
         else
         {
             CARB_LOG_INFO("Found Mesh At: %s", meshPath.c_str());
-            auto assimpScene =
-                aiImportFile(meshPath.c_str(), aiProcess_GenSmoothNormals | aiProcess_OptimizeMeshes |
-                                                   aiProcess_RemoveRedundantMaterials | aiProcess_GlobalScale);
+            static auto propsDeleter = [](aiPropertyStore* props)
+            {
+                if (props)
+                {
+                    aiReleasePropertyStore(props);
+                }
+            };
+
+            auto props = std::shared_ptr<aiPropertyStore>(aiCreatePropertyStore(), propsDeleter);
+            aiSetImportPropertyInteger(
+                props.get(), AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+            aiSetImportPropertyInteger(props.get(), AI_CONFIG_IMPORT_REMOVE_EMPTY_BONES, 0);
+
+
+            auto assimpScene = aiImportFileExWithProperties(
+                meshPath.c_str(),
+                aiProcess_GenSmoothNormals | aiProcess_RemoveRedundantMaterials | aiProcess_GenUVCoords |
+                    aiProcess_TransformUVCoords | aiProcess_JoinIdenticalVertices,
+                nullptr, props.get());
+
+            // aiImportFile(meshPath.c_str(), aiProcess_GenSmoothNormals |
+            //                                    aiProcess_RemoveRedundantMaterials | aiProcess_GlobalScale);
             static auto sceneDeleter = [](const aiScene* scene)
             {
                 if (scene)
@@ -139,13 +213,18 @@ pxr::UsdPrim addMesh(pxr::UsdStageWeakPtr stage,
                     aiReleaseImport(scene);
                 }
             };
+
+            if (!assimpScene || !assimpScene->HasMeshes())
+            {
+                CARB_LOG_WARN("Unable to load file %s", meshPath.c_str());
+            }
             auto sceneRAII = std::shared_ptr<const aiScene>(assimpScene, sceneDeleter);
             // Add visuals
             if (!sceneRAII || !sceneRAII->mRootNode)
             {
                 CARB_LOG_WARN("Asset convert failed as asset file is broken.");
             }
-            else if (sceneRAII->mRootNode->mNumChildren == 0)
+            else if (sceneRAII->mNumMeshes == 0)
             {
                 CARB_LOG_WARN("Asset convert failed as asset cannot be loaded.");
             }
@@ -179,25 +258,26 @@ pxr::UsdPrim addMesh(pxr::UsdStageWeakPtr stage,
     else if (geometry.type == UrdfGeometryType::CYLINDER && !replaceCylindersWithCapsules)
     {
 
-            pxr::UsdGeomCylinder gprim = pxr::UsdGeomCylinder::Define(stage, pxr::SdfPath(name));
-            pxr::VtVec3fArray extentArray(2);
-            gprim.ComputeExtent(geometry.length, geometry.radius, pxr::UsdGeomTokens->x, &extentArray);
-            gprim.GetAxisAttr().Set(pxr::UsdGeomTokens->z);
-            gprim.GetExtentAttr().Set(extentArray);
-            gprim.GetHeightAttr().Set(double(geometry.length));
-            gprim.GetRadiusAttr().Set(double(geometry.radius));
-            path = pxr::SdfPath(name);
+        pxr::UsdGeomCylinder gprim = pxr::UsdGeomCylinder::Define(stage, pxr::SdfPath(name));
+        pxr::VtVec3fArray extentArray(2);
+        gprim.ComputeExtent(geometry.length, geometry.radius, pxr::UsdGeomTokens->z, &extentArray);
+        gprim.GetAxisAttr().Set(pxr::UsdGeomTokens->z);
+        gprim.GetExtentAttr().Set(extentArray);
+        gprim.GetHeightAttr().Set(double(geometry.length));
+        gprim.GetRadiusAttr().Set(double(geometry.radius));
+        path = pxr::SdfPath(name);
     }
-    else if (geometry.type == UrdfGeometryType::CAPSULE || (geometry.type == UrdfGeometryType::CYLINDER && replaceCylindersWithCapsules))
+    else if (geometry.type == UrdfGeometryType::CAPSULE ||
+             (geometry.type == UrdfGeometryType::CYLINDER && replaceCylindersWithCapsules))
     {
-            pxr::UsdGeomCapsule gprim = pxr::UsdGeomCapsule::Define(stage, pxr::SdfPath(name));
-            pxr::VtVec3fArray extentArray(2);
-            gprim.ComputeExtent(geometry.length, geometry.radius, pxr::UsdGeomTokens->x, &extentArray);
-            gprim.GetAxisAttr().Set(pxr::UsdGeomTokens->z);
-            gprim.GetExtentAttr().Set(extentArray);
-            gprim.GetHeightAttr().Set(double(geometry.length));
-            gprim.GetRadiusAttr().Set(double(geometry.radius));
-            path = pxr::SdfPath(name);
+        pxr::UsdGeomCapsule gprim = pxr::UsdGeomCapsule::Define(stage, pxr::SdfPath(name));
+        pxr::VtVec3fArray extentArray(2);
+        gprim.ComputeExtent(geometry.length, geometry.radius, pxr::UsdGeomTokens->z, &extentArray);
+        gprim.GetAxisAttr().Set(pxr::UsdGeomTokens->z);
+        gprim.GetExtentAttr().Set(extentArray);
+        gprim.GetHeightAttr().Set(double(geometry.length));
+        gprim.GetRadiusAttr().Set(double(geometry.radius));
+        path = pxr::SdfPath(name);
     }
 
     pxr::UsdPrim prim = stage->GetPrimAtPath(path);
@@ -358,9 +438,10 @@ void UrdfImporter::addInstanceableMeshes(pxr::UsdStageRefPtr stage,
         }
         meshName = robotBasePath + link.name + "/collisions/" + name;
 
-        pxr::UsdPrim prim = addMesh(stage, link.collisions[i].geometry, assetRoot_, urdfPath_, meshName,
-                                    link.collisions[i].origin, false, config.distanceScale, false, materialsList,
-                                    subdivisionschemes[(int)config.subdivisionScheme], false, config.replaceCylindersWithCapsules);
+        pxr::UsdPrim prim =
+            addMesh(stage, link.collisions[i].geometry, assetRoot_, urdfPath_, meshName, link.collisions[i].origin,
+                    false, config.distanceScale, false, materialsList,
+                    subdivisionschemes[(int)config.subdivisionScheme], false, config.replaceCylindersWithCapsules);
         // Enable collisions on prim
         if (prim)
         {
@@ -424,7 +505,8 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
             .Set(pxr::GfQuatd(transform.q.w, transform.q.x, transform.q.y, transform.q.z));
         linkPrim.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
 
-        for (const auto& pair : link.mergedChildren) {
+        for (const auto& pair : link.mergedChildren)
+        {
             auto childXform = pxr::UsdGeomXform::Define(stage, linkPrim.GetPath().AppendPath(pxr::SdfPath(pair.first)));
             if (childXform)
             {
@@ -435,7 +517,7 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
                 childXform.AddOrientOp(pxr::UsdGeomXformOp::PrecisionDouble)
                     .Set(pxr::GfQuatd(pair.second.q.w, pair.second.q.x, pair.second.q.y, pair.second.q.z));
                 childXform.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
-                    }
+            }
         }
 
         pxr::UsdPhysicsRigidBodyAPI physicsAPI = pxr::UsdPhysicsRigidBodyAPI::Apply(linkPrim.GetPrim());
@@ -452,7 +534,8 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
         }
         else
         {
-            massAPI.CreateMassAttr().Set(kNegligibleMass); //Set mass significantly low that it won't impact simulation, but not so low as to be treated as massless
+            massAPI.CreateMassAttr().Set(kNegligibleMass); // Set mass significantly low that it won't impact
+                                                           // simulation, but not so low as to be treated as massless
         }
 
         if (link.inertial.hasInertia && config.importInertiaTensor)
@@ -468,7 +551,8 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
             // input is meters, but convert to kit units
             massAPI.CreateDiagonalInertiaAttr().Set(config.distanceScale * config.distanceScale *
                                                     pxr::GfVec3f(diaginertia.x, diaginertia.y, diaginertia.z));
-
+            massAPI.CreatePrincipalAxesAttr().Set(
+                pxr::GfQuatf(principalAxes[3], principalAxes[0], principalAxes[1], principalAxes[2]));
         }
 
         if (link.inertial.hasOrigin)
@@ -605,9 +689,10 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
                 meshName = robotBasePath + link.name + "/collisions";
             }
 
-            pxr::UsdPrim prim = addMesh(stage, link.collisions[i].geometry, assetRoot_, urdfPath_, meshName,
-                                        link.collisions[i].origin, false, config.distanceScale, false, materialsList,
-                                        subdivisionschemes[(int)config.subdivisionScheme], false, config.replaceCylindersWithCapsules);
+            pxr::UsdPrim prim =
+                addMesh(stage, link.collisions[i].geometry, assetRoot_, urdfPath_, meshName, link.collisions[i].origin,
+                        false, config.distanceScale, false, materialsList,
+                        subdivisionschemes[(int)config.subdivisionScheme], false, config.replaceCylindersWithCapsules);
             // Enable collisions on prim
             if (prim)
             {
@@ -650,28 +735,283 @@ void UrdfImporter::addRigidBody(pxr::UsdStageWeakPtr stage,
     }
     if (link.collisions.size() == 0)
     {
-        if (! link.inertial.hasInertia || ! config.importInertiaTensor)
+        if (!link.inertial.hasInertia || !config.importInertiaTensor)
         {
-            CARB_LOG_WARN("Link %s has no colliders, and no inertia was imported; assigning a small isotropic inertia matrix", link.name.c_str());
+            CARB_LOG_WARN(
+                "Link %s has no colliders, and no inertia was imported; assigning a small isotropic inertia matrix",
+                link.name.c_str());
 
             pxr::UsdPhysicsMassAPI massAPI = pxr::UsdPhysicsMassAPI(linkPrim.GetPrim());
             massAPI.CreateDiagonalInertiaAttr().Set(config.distanceScale * config.distanceScale * 10.0f *
-                pxr::GfVec3f(kNegligibleMass, kNegligibleMass, kNegligibleMass));
+                                                    pxr::GfVec3f(kNegligibleMass, kNegligibleMass, kNegligibleMass));
+        }
+    }
+    // Add Sensors
+    for (auto& camera : link.cameras)
+    {
+        auto cameraPrim = pxr::UsdGeomCamera::Define(
+            stage, pxr::SdfPath(linkPrim.GetPath().AppendChild(PXR_NS::TfToken(camera.name))));
+        auto cameraXform = pxr::UsdGeomXformable(cameraPrim.GetPrim());
+        cameraXform.ClearXformOpOrder();
+        // TODO: not sure OV's default optical axis is the same as ROS, so we may need to transform the orientation from
+        // URDF
+        cameraXform.AddTranslateOp(pxr::UsdGeomXformOp::PrecisionDouble)
+            .Set(config.distanceScale * pxr::GfVec3d(camera.origin.p.x, camera.origin.p.y, camera.origin.p.z));
+        cameraXform.AddOrientOp(pxr::UsdGeomXformOp::PrecisionDouble)
+            .Set(pxr::GfQuatd(camera.origin.q.w, camera.origin.q.x, camera.origin.q.y, camera.origin.q.z));
+        cameraXform.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
+        cameraPrim.GetClippingRangeAttr().Set(config.distanceScale * pxr::GfVec2f(camera.clipNear, camera.clipFar));
+
+        // Compute Focal Length Assuming a fixed horizontal aperture of 20.955mm (default in cameras created with
+        // Omniverse, which is the equivalent of the standard 35mm spherical projector aperture)
+        // And a non-distorted camera sensor (no default distortion model is available in official URDF spec)
+        float aperture = 0;
+        cameraPrim.GetHorizontalApertureAttr().Get(&aperture);
+        float focal = aperture / (2 * tan(camera.hfov / 2));
+
+        cameraPrim.GetFocalLengthAttr().Set(focal);
+    }
+
+
+    for (auto& lidar : link.lidars)
+    {
+        // Add a RTX Lidar camera and wire so it can load json config files
+        auto lidarPrim =
+            pxr::UsdGeomCamera::Define(stage, pxr::SdfPath(linkPrim.GetPath().AppendChild(PXR_NS::TfToken(lidar.name))));
+        auto lidarXform = pxr::UsdGeomXformable(lidarPrim.GetPrim());
+        lidarXform.ClearXformOpOrder();
+        // TODO: not sure OV's default optical axis is the same as ROS, so we may need to transform the orientation from
+        // URDF
+        lidarXform.AddTranslateOp(pxr::UsdGeomXformOp::PrecisionDouble)
+            .Set(config.distanceScale * pxr::GfVec3d(lidar.origin.p.x, lidar.origin.p.y, lidar.origin.p.z));
+        lidarXform.AddOrientOp(pxr::UsdGeomXformOp::PrecisionDouble)
+            .Set(pxr::GfQuatd(lidar.origin.q.w, lidar.origin.q.x, lidar.origin.q.y, lidar.origin.q.z));
+        lidarXform.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
+        lidarPrim.GetClippingRangeAttr().Set(config.distanceScale * pxr::GfVec2f(0.001f, 1000.0f));
+
+        // Lazy Apply the IsaacRtxLidarSensorAPI to the prim
+        // Get the SdfPrimSpec for the prim
+        pxr::SdfTokenListOp schemasListOp;
+        pxr::SdfTokenListOp::ItemVector schemasList;
+        schemasList.push_back(pxr::TfToken("IsaacRtxLidarSensorAPI"));
+        schemasListOp.SetAddedItems(schemasList);
+        lidarPrim.GetPrim().SetMetadata(pxr::UsdTokens->apiSchemas, pxr::VtValue(schemasListOp));
+
+        pxr::UsdAttribute sensorTypeAttr =
+            lidarPrim.GetPrim().CreateAttribute(pxr::TfToken("cameraSensorType"), pxr::SdfValueTypeNames->Token, false);
+        sensorTypeAttr.Set(pxr::TfToken("lidar"));
+
+        pxr::TfToken tokenValue1("camera");
+        pxr::TfToken tokenValue2("radar");
+        pxr::TfToken tokenValue3("lidar");
+
+        pxr::VtArray<pxr::TfToken> validTokens{ tokenValue1, tokenValue2, tokenValue3 };
+        // Set the valid tokens for the attribute
+        sensorTypeAttr.SetMetadata(pxr::TfToken("allowedTokens"), validTokens);
+
+
+        lidarPrim.GetPrim()
+            .CreateAttribute(pxr::TfToken("sensorModelPluginName"), pxr::SdfValueTypeNames->String, false)
+            .Set("omni.sensors.nv.lidar.lidar_core.plugin");
+        omni::kit::IApp* app = carb::getCachedInterface<omni::kit::IApp>();
+        omni::ext::ExtensionManager* extManager = app->getExtensionManager();
+        pxr::SdfLayerRefPtr rootLayer = stage->GetRootLayer();
+
+        // Get the real path of the root layer, and a few extra useful paths
+        std::string stagePath = getParent(rootLayer->GetRealPath());
+        std::string sensorPath =
+            omni::ext::getExtensionPath(extManager, omni::ext::getEnabledExtensionId(extManager, "omni.isaac.sensor"));
+        std::string importerPath =
+            omni::ext::getExtensionPath(extManager, omni::ext::getEnabledExtensionId(extManager, "omni.importer.urdf"));
+        if (lidar.isaacSimConfig != "")
+        {
+            // If it's a reference for a config file
+            if (hasExtension(lidar.isaacSimConfig, "json"))
+            {
+                std::string configPath = resolveXrefPath(assetRoot_, urdfPath_, lidar.isaacSimConfig);
+                std::string conf_name = getPathStem(configPath.c_str());
+                if (stagePath != "")
+                {
+                    omniClientWait(
+                        omniClientCopy(configPath.c_str(), pathJoin(stagePath, conf_name + ".json").c_str(), {}, {}));
+                    if (sensorPath != "")
+                    {
+                        createSymbolicLink(
+                            pathJoin(stagePath, conf_name + ".json"),
+                            pathJoin(pathJoin(pathJoin(sensorPath, "data"), "lidar_configs"), conf_name + ".json"));
+                    }
+                }
+                else
+                {
+                    CARB_LOG_WARN("Cannot copy/link over lidar configuration when importing into an in-memory stage.");
+                }
+                lidarPrim.GetPrim()
+                    .CreateAttribute(pxr::TfToken("sensorModelConfig"), pxr::SdfValueTypeNames->String, false)
+                    .Set(conf_name);
+            }
+            // Otherwise it's a preset config
+            else
+            {
+                lidarPrim.GetPrim()
+                    .CreateAttribute(pxr::TfToken("sensorModelConfig"), pxr::SdfValueTypeNames->String, false)
+                    .Set(lidar.isaacSimConfig);
+            }
+        }
+        // If no cofig file is provided, use the default urdf values to create a basic lidar sensor
+        else if (stagePath != "")
+        {
+
+            std::string template_file =
+                pathJoin(pathJoin(pathJoin(importerPath, "data"), "lidar_sensor_template"), "lidar_template.json");
+            std::ifstream ifs(template_file);
+            if (!ifs.is_open())
+            {
+                CARB_LOG_ERROR("Failed to open lidar template file: %s", template_file.c_str());
+                lidarPrim.GetPrim()
+                    .CreateAttribute(pxr::TfToken("sensorModelConfig"), pxr::SdfValueTypeNames->String, false)
+                    .Set("");
+            }
+            else
+            {
+
+                std::string jsonStr((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+
+                // Parse the JSON
+                rapidjson::Document doc;
+                doc.Parse(jsonStr.c_str());
+                rapidjson::Document::AllocatorType& allocator = doc.GetAllocator();
+
+                size_t totalRays = lidar.horizontal.samples * lidar.vertical.samples;
+
+                doc["profile"]["scanRateBaseHz"] = lidar.updateRate;
+                doc["profile"]["reportRateBaseHz"] = lidar.updateRate;
+
+                doc["profile"]["numberOfEmitters"] = totalRays;
+                doc["profile"]["numberOfChannels"] = totalRays;
+                doc["profile"]["numLines"] = totalRays;
+                float hMinDeg = lidar.horizontal.minAngle * (180.0 / M_PI);
+                float vMinDeg = lidar.vertical.minAngle * (180.0 / M_PI);
+
+                float hMaxDeg = lidar.horizontal.maxAngle * (180.0 / M_PI);
+                float vMaxDeg = lidar.vertical.maxAngle * (180.0 / M_PI);
+
+                doc["profile"]["startAzimuthDeg"] = hMinDeg;
+                doc["profile"]["endAzimuthDeg"] = hMaxDeg;
+
+                doc["profile"]["downElevationDeg"] = vMinDeg;
+                doc["profile"]["upElevationDeg"] = vMaxDeg;
+
+                float horizontal_step = ((lidar.horizontal.maxAngle - lidar.horizontal.minAngle) * (180.0 / M_PI)) /
+                                        (lidar.horizontal.samples - 1);
+                float vertical_step = ((lidar.vertical.maxAngle - lidar.vertical.minAngle) * (180.0 / M_PI)) /
+                                      (lidar.horizontal.samples - 1);
+                if (lidar.hasHorizontal || lidar.hasVertical)
+                {
+                    doc["profile"]["emitterStates"][0]["azimuthDeg"].Clear();
+                    doc["profile"]["emitterStates"][0]["elevationDeg"].Clear();
+                    doc["profile"]["emitterStates"][0]["fireTimeNs"].Clear();
+                    doc["profile"]["emitterStates"][0]["channelId"].Clear();
+                    doc["profile"]["emitterStates"][0]["rangeId"].Clear();
+                    doc["profile"]["emitterStates"][0]["bank"].Clear();
+                    doc["profile"]["numRaysPerLine"].Clear();
+                    int count = 0;
+                    for (size_t vs = 0; vs < lidar.vertical.samples; vs++)
+                    {
+                        doc["profile"]["numRaysPerLine"] =
+                            doc["profile"]["numRaysPerLine"].PushBack(lidar.horizontal.samples, allocator);
+                        for (size_t hs = 0; hs < lidar.horizontal.samples; hs++)
+                        {
+                            doc["profile"]["emitterStates"][0]["azimuthDeg"].PushBack(
+                                hMinDeg + hs * horizontal_step, allocator);
+                            doc["profile"]["emitterStates"][0]["elevationDeg"].PushBack(
+                                vMinDeg + vs * vertical_step, allocator);
+                            doc["profile"]["emitterStates"][0]["fireTimeNs"].PushBack(0, allocator);
+                            doc["profile"]["emitterStates"][0]["channelId"].PushBack(count++, allocator);
+                            doc["profile"]["emitterStates"][0]["rangeId"].PushBack(0, allocator);
+                            doc["profile"]["emitterStates"][0]["bank"].PushBack(totalRays - count, allocator);
+                        }
+                    }
+                }
+                std::string conf_name = robot.name + "_" + lidar.name;
+                saveJsonToFile(doc, pathJoin(stagePath, conf_name + ".json"));
+                if (sensorPath != "")
+                {
+                    createSymbolicLink(
+                        pathJoin(stagePath, conf_name + ".json"),
+                        pathJoin(pathJoin(pathJoin(sensorPath, "data"), "lidar_configs"), conf_name + ".json"));
+                }
+                lidarPrim.GetPrim()
+                    .CreateAttribute(pxr::TfToken("sensorModelConfig"), pxr::SdfValueTypeNames->String, false)
+                    .Set(conf_name);
+            }
+        }
+        else
+        {
+            CARB_LOG_WARN(
+                "Cannot copy/link over lidar configuration when importing into an in-memory stage. Configuration file not generated.");
         }
     }
 }
+
+const char* getJointAxis(UrdfAxis axis, Quat& direction)
+{
+    Vec3 currentAxis(axis.x, axis.y, axis.z);
+    // In principle nothing needs to be done if joint is aligned with an axis
+    // If joint is inverse-aligned with axis (e.g. (-1,0,0)), we need to provide a rotation direction so that the
+    // Joint rotation is applied at 180 degrees from the parent/child bodies.
+
+    // If Joint axis is not aligned with a principal axis (unlikely to happen), there's another portion of the code
+    // handling this orientation change
+    direction = Quat(0, 0, 0, 1);
+    if (abs(Dot(currentAxis, Vec3(1.0f, 0.0f, 0.0f))) > 1 - kSmallEps)
+    {
+        if (Dot(currentAxis, Vec3(1.0f, 0.0f, 0.0f)) < 0)
+        {
+            direction = Quat(0, 0, 1, 0);
+        }
+        return "X";
+    }
+    else if (abs(Dot(currentAxis, Vec3(0.0f, 1.0f, 0.0f))) > 1 - kSmallEps)
+    {
+        if (Dot(currentAxis, Vec3(0.0f, 1.0f, 0.0f)) < 0)
+        {
+            direction = Quat(1, 0, 0, 0);
+        }
+        return "Y";
+    }
+    else if (abs(Dot(currentAxis, Vec3(0.0f, 0.0f, 1.0f))) > 1 - kSmallEps)
+    {
+        if (Dot(currentAxis, Vec3(0.0f, 0.0f, 1.0f)) < 0)
+        {
+            direction = Quat(0, 1, 0, 0);
+        }
+        return "Z";
+    }
+    return "";
+}
+
 
 template <class T>
 void AddSingleJoint(const UrdfJoint& joint,
                     pxr::UsdStageWeakPtr stage,
                     const pxr::SdfPath& jointPath,
                     pxr::UsdPhysicsJoint& jointPrimBase,
-                    const float distanceScale)
+                    const float distanceScale,
+                    const ImportConfig& config)
 {
 
     T jointPrim = T::Define(stage, pxr::SdfPath(jointPath));
     jointPrimBase = jointPrim;
-    jointPrim.CreateAxisAttr().Set(pxr::TfToken("X"));
+    Quat direction;
+    const char* axis = getJointAxis(joint.axis, direction);
+    if (axis != "")
+    {
+        jointPrim.CreateAxisAttr().Set(pxr::TfToken(axis));
+    }
+    else
+    {
+        jointPrim.CreateAxisAttr().Set(pxr::TfToken("X"));
+    }
 
     // Set the limits if the joint is anything except a continuous joint
     if (joint.type != UrdfJointType::CONTINUOUS)
@@ -686,14 +1026,18 @@ void AddSingleJoint(const UrdfJoint& joint,
         jointPrim.CreateUpperLimitAttr().Set(scale * joint.limit.upper);
     }
     pxr::PhysxSchemaPhysxJointAPI physxJoint = pxr::PhysxSchemaPhysxJointAPI::Apply(jointPrim.GetPrim());
-    physxJoint.CreateJointFrictionAttr().Set(joint.dynamics.friction);
+    if (joint.dynamics.friction > 0.0f)
+    {
+        physxJoint.CreateJointFrictionAttr().Set(joint.dynamics.friction);
+    }
 
     if (joint.type == UrdfJointType::PRISMATIC)
     {
         pxr::PhysxSchemaJointStateAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("linear"));
-        if (joint.mimic.joint == "")
+        if (joint.mimic.joint == "" || !config.parseMimic)
         {
-            pxr::UsdPhysicsDriveAPI driveAPI = pxr::UsdPhysicsDriveAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("linear"));
+            pxr::UsdPhysicsDriveAPI driveAPI =
+                pxr::UsdPhysicsDriveAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("linear"));
             // convert kg*m/s^2 to kg * cm /s^2
             driveAPI.CreateMaxForceAttr().Set(joint.limit.effort > 0.0f ? joint.limit.effort * distanceScale : FLT_MAX);
 
@@ -720,13 +1064,21 @@ void AddSingleJoint(const UrdfJoint& joint,
             // change drive stiffness and damping
             if (joint.drive.targetType != UrdfJointTargetType::NONE)
             {
-                driveAPI.CreateDampingAttr().Set(joint.dynamics.damping);
-                driveAPI.CreateStiffnessAttr().Set(joint.dynamics.stiffness);
+                if (joint.drive.targetType == UrdfJointTargetType::POSITION)
+                {
+                    driveAPI.CreateStiffnessAttr().Set(joint.drive.strength);
+                    driveAPI.CreateDampingAttr().Set(joint.drive.damping);
+                }
+                if (joint.drive.targetType == UrdfJointTargetType::VELOCITY)
+                {
+                    driveAPI.CreateStiffnessAttr().Set(0.0f);
+                    driveAPI.CreateDampingAttr().Set(joint.drive.strength);
+                }
             }
             else
             {
-                driveAPI.CreateDampingAttr().Set(0.0f);
-                driveAPI.CreateStiffnessAttr().Set(0.0f);
+                driveAPI.CreateDampingAttr().Set(joint.dynamics.damping);
+                driveAPI.CreateStiffnessAttr().Set(joint.dynamics.stiffness);
             }
         }
 
@@ -739,9 +1091,10 @@ void AddSingleJoint(const UrdfJoint& joint,
     {
         pxr::PhysxSchemaJointStateAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("angular"));
 
-        if (joint.mimic.joint == "")
+        if (joint.mimic.joint == "" || !config.parseMimic)
         {
-            pxr::UsdPhysicsDriveAPI driveAPI = pxr::UsdPhysicsDriveAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("angular"));
+            pxr::UsdPhysicsDriveAPI driveAPI =
+                pxr::UsdPhysicsDriveAPI::Apply(jointPrim.GetPrim(), pxr::TfToken("angular"));
             // convert kg*m/s^2 * m to kg * cm /s^2 * cm
             driveAPI.CreateMaxForceAttr().Set(
                 joint.limit.effort > 0.0f ? joint.limit.effort * distanceScale * distanceScale : FLT_MAX);
@@ -769,13 +1122,21 @@ void AddSingleJoint(const UrdfJoint& joint,
             // change drive stiffness and damping
             if (joint.drive.targetType != UrdfJointTargetType::NONE)
             {
-                driveAPI.CreateDampingAttr().Set(joint.dynamics.damping);
-                driveAPI.CreateStiffnessAttr().Set(joint.dynamics.stiffness);
+                if (joint.drive.targetType == UrdfJointTargetType::POSITION)
+                {
+                    driveAPI.CreateStiffnessAttr().Set(joint.drive.strength);
+                    driveAPI.CreateDampingAttr().Set(joint.drive.damping);
+                }
+                if (joint.drive.targetType == UrdfJointTargetType::VELOCITY)
+                {
+                    driveAPI.CreateStiffnessAttr().Set(0.0f);
+                    driveAPI.CreateDampingAttr().Set(joint.drive.strength);
+                }
             }
             else
             {
-                driveAPI.CreateDampingAttr().Set(0.0f);
-                driveAPI.CreateStiffnessAttr().Set(0.0f);
+                driveAPI.CreateDampingAttr().Set(joint.dynamics.damping);
+                driveAPI.CreateStiffnessAttr().Set(joint.dynamics.stiffness);
             }
         }
         // Convert revolute joint velocity limit to deg/s
@@ -783,41 +1144,37 @@ void AddSingleJoint(const UrdfJoint& joint,
             joint.limit.velocity > 0.0f ? static_cast<float>(180.0f / M_PI * joint.limit.velocity) : FLT_MAX);
     }
 
-    for (auto &mimic : joint.mimicChildren)
+    if (config.parseMimic)
     {
-        auto tendonRoot = pxr::PhysxSchemaPhysxTendonAxisRootAPI::Apply(jointPrim.GetPrim(), pxr::TfToken(mimic.first));
-        tendonRoot.CreateStiffnessAttr().Set(1.e5f);
-        tendonRoot.CreateDampingAttr().Set(10.0);
-        float scale = 180.0f / static_cast<float>(M_PI);
-        if (joint.type == UrdfJointType::PRISMATIC)
+        if (joint.mimic.joint != "")
         {
-            scale = distanceScale;
-        }
-        auto offset = scale*mimic.second;
-        tendonRoot.CreateOffsetAttr().Set(offset);
-        // Manually setting the coefficients to avoid adding an extra API that makes it messy.
-        std::string attrName1 = "physxTendon:"+mimic.first+":forceCoefficient";
-        auto attr1 = tendonRoot.GetPrim().CreateAttribute( pxr::TfToken(attrName1.c_str()), pxr::SdfValueTypeNames->FloatArray, false);
-        std::string attrName2 = "physxTendon:"+mimic.first+":gearing";
-        auto attr2 = tendonRoot.GetPrim().CreateAttribute( pxr::TfToken(attrName2.c_str()), pxr::SdfValueTypeNames->FloatArray, false);
-        pxr::VtArray<float> forceattr;
-        pxr::VtArray<float> gearing;
-        forceattr.push_back(-1.0f);
-        gearing.push_back(-1.0f);
-        attr1.Set(forceattr);
-        attr2.Set(gearing);
-    }
-    if (joint.mimic.joint != "")
-    {
-        auto tendon = pxr::PhysxSchemaPhysxTendonAxisAPI::Apply(jointPrim.GetPrim(), pxr::TfToken(joint.name));
-        pxr::VtArray<float> forceattr;
-        pxr::VtArray<float> gearing;
-        forceattr.push_back(joint.mimic.multiplier>0?1:-1);
-        // Tendon Gear ratio is the inverse of the mimic multiplier
-        gearing.push_back(1.0f/joint.mimic.multiplier);
-        tendon.CreateForceCoefficientAttr().Set(forceattr);
-        tendon.CreateGearingAttr().Set(gearing);
+            auto axisToken = pxr::UsdPhysicsTokens.Get()->rotX;
+            Quat direction;
+            const char* axis = getJointAxis(joint.axis, direction);
+            {
+                if (axis == "Y")
+                {
+                    axisToken = pxr::UsdPhysicsTokens.Get()->rotY;
+                }
+                else if (axis == "Z")
+                {
+                    axisToken = pxr::UsdPhysicsTokens.Get()->rotZ;
+                }
+            }
 
+            auto mimicAPI = pxr::PhysxSchemaPhysxMimicJointAPI::Apply(jointPrim.GetPrim(), axisToken);
+            // Gearing is the opposite direction from mimic multiplier
+            mimicAPI.GetGearingAttr().Set(-joint.mimic.multiplier);
+
+            mimicAPI.GetOffsetAttr().Set(joint.mimic.offset);
+
+            // Find source joint
+            auto source_prim = FindPrimByNameAndType(stage, joint.mimic.joint, pxr::TfType::Find<pxr::UsdPhysicsJoint>());
+            if (source_prim)
+            {
+                mimicAPI.GetReferenceJointRel().AddTarget(source_prim.GetPath());
+            }
+        }
     }
 }
 
@@ -845,7 +1202,7 @@ void UrdfImporter::addJoint(pxr::UsdStageWeakPtr stage,
     else if (joint.type == UrdfJointType::PRISMATIC)
     {
         AddSingleJoint<pxr::UsdPhysicsPrismaticJoint>(
-            joint, stage, pxr::SdfPath(jointPath), jointPrim, float(config.distanceScale));
+            joint, stage, pxr::SdfPath(jointPath), jointPrim, float(config.distanceScale), config);
     }
     // else if (joint.type == UrdfJointType::SPHERICAL)
     // {
@@ -855,7 +1212,7 @@ void UrdfImporter::addJoint(pxr::UsdStageWeakPtr stage,
     else if (joint.type == UrdfJointType::REVOLUTE || joint.type == UrdfJointType::CONTINUOUS)
     {
         AddSingleJoint<pxr::UsdPhysicsRevoluteJoint>(
-            joint, stage, pxr::SdfPath(jointPath), jointPrim, float(config.distanceScale));
+            joint, stage, pxr::SdfPath(jointPath), jointPrim, float(config.distanceScale), config);
     }
     else if (joint.type == UrdfJointType::FLOATING)
     {
@@ -879,31 +1236,43 @@ void UrdfImporter::addJoint(pxr::UsdStageWeakPtr stage,
     pxr::GfVec3f localPos1 = config.distanceScale * pxr::GfVec3f(0, 0, 0);
     pxr::GfQuatf localRot1 = pxr::GfQuatf(1, 0, 0, 0);
 
-    // Need to rotate the joint frame to match the urdf defined axis
-    // convert joint axis to angle-axis representation
-    Vec3 jointAxisRotAxis = -Cross(urdfAxisToVec(joint.axis), Vec3(1.0f, 0.0f, 0.0f));
-    float jointAxisRotAngle = acos(joint.axis.x); // this is equal to acos(Dot(joint.axis, Vec3(1.0f, 0.0f, 0.0f)))
-    if (Dot(jointAxisRotAxis, jointAxisRotAxis) < 1e-5f)
+    Quat jointAxisRotQuat(0.0f, 0.0f, 0.0f, 1.0f);
+    const char* axis = getJointAxis(joint.axis, jointAxisRotQuat);
+    if (axis == "")
     {
-        // for axis along x we define an arbitrary perpendicular rotAxis (along y).
-        // In that case the angle is 0 or 180deg
-        jointAxisRotAxis = Vec3(0.0f, 1.0f, 0.0f);
+        CARB_LOG_WARN(
+            "%s: Joint Axis is not body aligned with X, Y or Z primary axis. Adjusting PhysX joint alignment to Axis X and reorienting bodies.",
+            joint.name.c_str());
+        // If the joint axis is not aligned with X, Y or Z we revert back to PhysX's default of aligning to X axis.
+        // Need to rotate the joint frame to match the urdf defined axis
+        // convert joint axis to angle-axis representation
+        Vec3 jointAxisRotAxis = -Cross(urdfAxisToVec(joint.axis), Vec3(1.0f, 0.0f, 0.0f));
+        float jointAxisRotAngle = acos(joint.axis.x); // this is equal to acos(Dot(joint.axis, Vec3(1.0f, 0.0f, 0.0f)))
+        if (Dot(jointAxisRotAxis, jointAxisRotAxis) < kSmallEps)
+        {
+            // for axis along x we define an arbitrary perpendicular rotAxis (along y).
+            // In that case the angle is 0 or 180deg
+            jointAxisRotAxis = Vec3(0.0f, 1.0f, 0.0f);
+        }
+        // normalize jointAxisRotAxis
+        jointAxisRotAxis /= sqrtf(Dot(jointAxisRotAxis, jointAxisRotAxis));
+        // rotate the parent frame by the axis
+
+        jointAxisRotQuat = QuatFromAxisAngle(jointAxisRotAxis, jointAxisRotAngle);
     }
-    // normalize jointAxisRotAxis
-    jointAxisRotAxis /= sqrtf(Dot(jointAxisRotAxis, jointAxisRotAxis));
-    // rotate the parent frame by the axis
-    Quat jointAxisRotQuat =  QuatFromAxisAngle(jointAxisRotAxis, jointAxisRotAngle);
 
     // apply transforms
     jointPrim.CreateLocalPos0Attr().Set(localPos0);
-    jointPrim.CreateLocalRot0Attr().Set(localRot0 * pxr::GfQuatf(jointAxisRotQuat.w, jointAxisRotQuat.x, jointAxisRotQuat.y, jointAxisRotQuat.z));
+    jointPrim.CreateLocalRot0Attr().Set(
+        localRot0 * pxr::GfQuatf(jointAxisRotQuat.w, jointAxisRotQuat.x, jointAxisRotQuat.y, jointAxisRotQuat.z));
 
     if (childLinkPath != "")
     {
         jointPrim.CreateBody1Rel().SetTargets(val1);
     }
     jointPrim.CreateLocalPos1Attr().Set(localPos1);
-    jointPrim.CreateLocalRot1Attr().Set(localRot1 * pxr::GfQuatf(jointAxisRotQuat.w, jointAxisRotQuat.x, jointAxisRotQuat.y, jointAxisRotQuat.z));
+    jointPrim.CreateLocalRot1Attr().Set(
+        localRot1 * pxr::GfQuatf(jointAxisRotQuat.w, jointAxisRotQuat.x, jointAxisRotQuat.y, jointAxisRotQuat.z));
 
     jointPrim.CreateBreakForceAttr().Set(FLT_MAX);
     jointPrim.CreateBreakTorqueAttr().Set(FLT_MAX);
@@ -928,7 +1297,24 @@ void UrdfImporter::addLinksAndJoints(pxr::UsdStageWeakPtr stage,
         {
             std::string rootJointPath = robotPrim.GetPath().GetString() + "/root_joint";
             pxr::UsdPhysicsFixedJoint rootJoint = pxr::UsdPhysicsFixedJoint::Define(stage, pxr::SdfPath(rootJointPath));
+            pxr::UsdPrim rootLinkPrim = rootJoint.GetPrim();
+            // Apply articulation root schema
+            pxr::UsdPhysicsArticulationRootAPI physicsSchema = pxr::UsdPhysicsArticulationRootAPI::Apply(rootLinkPrim);
+            pxr::PhysxSchemaPhysxArticulationAPI physxSchema = pxr::PhysxSchemaPhysxArticulationAPI::Apply(rootLinkPrim);
+            // Set schema attributes
+            physxSchema.CreateEnabledSelfCollisionsAttr().Set(config.selfCollision);
+            // These are reasonable defaults, might want to expose them via the import config in the future.
+            physxSchema.CreateSolverPositionIterationCountAttr().Set(32);
+            physxSchema.CreateSolverVelocityIterationCountAttr().Set(1);
             pxr::SdfPathVector val1{ pxr::SdfPath(robotPrim.GetPath().GetString() + "/" + urdfLink.name) };
+            if (!urdfLink.inertial.hasMass)
+            {
+                auto linkPrim = stage->GetPrimAtPath(pxr::SdfPath(robotPrim.GetPath().GetString() + "/" + urdfLink.name));
+                pxr::UsdPhysicsMassAPI massAPI = pxr::UsdPhysicsMassAPI(linkPrim);
+                // set base mass to zero and let physx deal with that to provide a mass that stabilizes
+                // the base of the articulation
+                massAPI.GetMassAttr().Set(0.0f);
+            }
             rootJoint.CreateBody1Rel().SetTargets(val1);
         }
     }
@@ -1038,7 +1424,9 @@ pxr::UsdShadeMaterial UrdfImporter::addMaterial(pxr::UsdStageWeakPtr stage,
     return pxr::UsdShadeMaterial();
 }
 
-std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot& urdfRobot)
+std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage,
+                                     const UrdfRobot& urdfRobot,
+                                     bool getArticulationRoot = false)
 {
     if (urdfRobot.links.size() == 0)
     {
@@ -1105,15 +1493,6 @@ std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot
     gprim.AddOrientOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfQuatd(1, 0, 0, 0));
     gprim.AddScaleOp(pxr::UsdGeomXformOp::PrecisionDouble).Set(pxr::GfVec3d(1, 1, 1));
 
-    pxr::UsdPhysicsArticulationRootAPI physicsSchema = pxr::UsdPhysicsArticulationRootAPI::Apply(robotPrim.GetPrim());
-
-    pxr::PhysxSchemaPhysxArticulationAPI physxSchema = pxr::PhysxSchemaPhysxArticulationAPI::Apply(robotPrim.GetPrim());
-    physxSchema.CreateEnabledSelfCollisionsAttr().Set(config.selfCollision);
-
-    // These are reasonable defaults, might want to expose them via the import config in the future.
-    physxSchema.CreateSolverPositionIterationCountAttr().Set(32);
-    physxSchema.CreateSolverVelocityIterationCountAttr().Set(16);
-
     if (config.makeDefaultPrim)
     {
         stage->SetDefaultPrim(robotPrim.GetPrim());
@@ -1144,7 +1523,22 @@ std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot
             directory = (std::string::npos == pos) ? "" : curStagePath.substr(0, pos);
             instanceableStagePath = directory + relativePath;
         }
-        pxr::UsdStageRefPtr instanceableMeshStage = pxr::UsdStage::CreateNew(instanceableStagePath);
+
+        pxr::UsdStageRefPtr instanceableMeshStage;
+        instanceableMeshStage = pxr::UsdStage::Open(instanceableStagePath);
+        if (!instanceableMeshStage)
+        {
+            CARB_LOG_INFO("Creating Stage: %s", instanceableStagePath.c_str());
+            instanceableMeshStage = pxr::UsdStage::CreateNew(instanceableStagePath);
+        }
+        else
+        {
+            for (const auto& p : instanceableMeshStage->GetPrimAtPath(pxr::SdfPath("/")).GetChildren())
+            {
+                instanceableMeshStage->RemovePrim(p.GetPath());
+            }
+            instanceableMeshStage->Save();
+        }
         std::string robotBasePath = robotPrim.GetPath().GetString() + "/";
         buildInstanceableStage(instanceableMeshStage, chain.baseNode.get(), robotBasePath, urdfRobot);
         instanceableMeshStage->Export(instanceableStagePath);
@@ -1152,7 +1546,30 @@ std::string UrdfImporter::addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot
 
     addLinksAndJoints(stage, Transform(), chain.baseNode.get(), urdfRobot, robotPrim);
 
-    return primPath.GetString();
+    // Add articulation root prim on the actual root link
+    pxr::SdfPath rootLinkPrimPath = pxr::SdfPath(primPath.GetString() + "/root_joint");
+    if (!config.fixBase)
+    {
+        rootLinkPrimPath = pxr::SdfPath(primPath.GetString() + "/" + urdfRobot.rootLink);
+        pxr::UsdPrim rootLinkPrim = stage->GetPrimAtPath(rootLinkPrimPath);
+        // Apply articulation root schema
+        pxr::UsdPhysicsArticulationRootAPI physicsSchema = pxr::UsdPhysicsArticulationRootAPI::Apply(rootLinkPrim);
+        pxr::PhysxSchemaPhysxArticulationAPI physxSchema = pxr::PhysxSchemaPhysxArticulationAPI::Apply(rootLinkPrim);
+        // Set schema attributes
+        physxSchema.CreateEnabledSelfCollisionsAttr().Set(config.selfCollision);
+        // These are reasonable defaults, might want to expose them via the import config in the future.
+        physxSchema.CreateSolverPositionIterationCountAttr().Set(32);
+        physxSchema.CreateSolverVelocityIterationCountAttr().Set(1);
+    }
+
+    if (getArticulationRoot)
+    {
+        return rootLinkPrimPath.GetString();
+    }
+    else
+    {
+        return primPath.GetString();
+    }
 }
 }
 }

@@ -148,4 +148,20 @@
       <inertia ixx="2.0" ixy="0.0" ixz="0.0" iyy="3.0" iyz="0.0" izz="4.0"/>
     </inertial>
   </link>
+
+  <joint name="finger_3_joint" type="prismatic">
+    <parent link="palm_link"/>
+    <child link="finger_link_3"/>
+    <limit effort="1000.0" lower="-0.08" upper="0.02" velocity="0.5"/>
+    <origin rpy="0 1.571 0" xyz="0.30 0 0.05"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="finger_link_3">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+      <mass value="0.7"/>
+      <inertia ixx="1.0E-03" ixy="1.0E-06" ixz="1.0E-06" iyy="1.0E-03" iyz="1.0E-06" izz="1.0E-03"/>
+    </inertial>
+  </link>
 </robot>

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -333,7 +333,7 @@ bool parseJointMimic(const XMLElement& element, UrdfJointMimic& mimic)
     }
 
     auto offsetElement = element.Attribute("offset");
-    if (!offsetElement ||!parseFloat(offsetElement, mimic.offset))
+    if (!offsetElement || !parseFloat(offsetElement, mimic.offset))
     {
         mimic.offset = 0;
     }
@@ -448,7 +448,7 @@ bool parseDynamics(const XMLElement& element, UrdfDynamics& dynamics)
             if (!parseFloat(attribute, dynamics.damping))
             {
                 // optional
-                dynamics.damping = 0;
+                dynamics.damping = 0.0f;
             }
         }
         attribute = dynamicsElement->Attribute("friction");
@@ -457,7 +457,16 @@ bool parseDynamics(const XMLElement& element, UrdfDynamics& dynamics)
             if (!parseFloat(attribute, dynamics.friction))
             {
                 // optional
-                dynamics.friction = 0;
+                dynamics.friction = 0.0f;
+            }
+        }
+        attribute = dynamicsElement->Attribute("spring_stiffness");
+        if (attribute)
+        {
+            if (!parseFloat(attribute, dynamics.stiffness))
+            {
+                // optional
+                dynamics.stiffness = 0.0f;
             }
         }
     }
@@ -771,6 +780,49 @@ bool parseChildAttributeString(const tinyxml2::XMLElement& element,
 }
 
 
+// Convert const char* to UrdfSensorType
+UrdfSensorType stringToSensorType(const char* str)
+{
+    // Map strings to enum values
+    static const std::unordered_map<std::string, UrdfSensorType> stringToSensorType = {
+        { "camera", UrdfSensorType::CAMERA }, { "ray", UrdfSensorType::RAY },
+        // {"magnetometer",  UrdfSensorType::MAGNETOMETER},
+        // {"imu",  UrdfSensorType::IMU},
+        // {"gps",  UrdfSensorType::GPS},
+        // {"force_torque",  UrdfSensorType::FORCE},
+        // {"contact",  UrdfSensorType::CONTACT},
+        // {"sonar",  UrdfSensorType::SONAR},
+        // {"rfidtag",  UrdfSensorType::RFIDTAG},
+        // {"rfid",  UrdfSensorType::RFID},
+    };
+    std::string key(str);
+    auto it = stringToSensorType.find(key);
+    if (it != stringToSensorType.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return UrdfSensorType::UNSUPPORTED;
+    }
+}
+
+bool parseSensorType(const tinyxml2::XMLElement& element, UrdfSensorType& output)
+{
+    const char* s = element.Attribute("type");
+    if (s)
+    {
+        output = stringToSensorType(s);
+        if (output == UrdfSensorType::UNSUPPORTED)
+        {
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+
 // bool parseFem(const tinyxml2::XMLElement& element, UrdfFem& fem)
 // {
 //     parseOrigin(element, fem.origin);
@@ -1001,7 +1053,9 @@ bool parseLinks(const XMLElement& root, std::map<std::string, UrdfLink>& urdfLin
 
 bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJoints)
 {
-     for(auto jointElement = root.FirstChildElement("joint"); jointElement; jointElement = jointElement->NextSiblingElement("joint")) {
+    for (auto jointElement = root.FirstChildElement("joint"); jointElement;
+         jointElement = jointElement->NextSiblingElement("joint"))
+    {
         UrdfJoint joint;
 
         // name
@@ -1096,7 +1150,8 @@ bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJ
     }
 
     // Add second pass to parse mimic information
-    for(auto jointElement = root.FirstChildElement("joint"); jointElement; jointElement = jointElement->NextSiblingElement("joint"))
+    for (auto jointElement = root.FirstChildElement("joint"); jointElement;
+         jointElement = jointElement->NextSiblingElement("joint"))
     {
         auto name = jointElement->Attribute("name");
         if (name)
@@ -1105,7 +1160,7 @@ bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJ
             auto mimicElement = jointElement->FirstChildElement("mimic");
             if (mimicElement)
             {
-                if(!parseJointMimic(*mimicElement, joint.mimic))
+                if (!parseJointMimic(*mimicElement, joint.mimic))
                 {
                     joint.mimic.joint = "";
                 }
@@ -1120,6 +1175,249 @@ bool parseJoints(const XMLElement& root, std::map<std::string, UrdfJoint>& urdfJ
     return true;
 }
 
+
+bool findRootLink(const std::map<std::string, UrdfLink>& urdfLinks,
+                  const std::map<std::string, UrdfJoint>& urdfJoints,
+                  std::string& rootLinkName)
+{
+    // Deal with degenerate case where there are no joints
+    if (urdfJoints.empty())
+    {
+        rootLinkName = makeValidUSDIdentifier(urdfLinks.begin()->second.name);
+        return true;
+    }
+    // Create a set to store all child links
+    std::unordered_set<std::string> childLinkNames;
+    // Iterate through joints and add child links to the set
+    for (const auto& joint : urdfJoints)
+    {
+        childLinkNames.insert(joint.second.childLinkName);
+    }
+    // Iterate through joints and find the link with no parent
+    for (const auto& joint : urdfJoints)
+    {
+        // If the parent link is not in the set of child links, it is the root link
+        if (childLinkNames.find(joint.second.parentLinkName) == childLinkNames.end())
+        {
+            rootLinkName = makeValidUSDIdentifier(joint.second.parentLinkName);
+            // check if root link exist in parsed links
+            if (urdfLinks.find(rootLinkName) == urdfLinks.end())
+            {
+                printf("*** Root link %s not found in links \n", rootLinkName.c_str());
+                return false;
+            }
+            // return true if root link is found
+            return true;
+        }
+    }
+    return false;
+}
+
+bool parseCamera(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    auto name = element->Attribute("name");
+    CARB_LOG_INFO("Parsing Camera %s", name);
+    auto cameraElement = element->FirstChildElement("camera");
+    if (cameraElement)
+    {
+
+        auto imageElement = cameraElement->FirstChildElement("image");
+        UrdfCamera camera;
+        camera.name = std::string(name);
+        parseOrigin(*element, camera.origin);
+        if (!parseFloat(element->Attribute("update_rate"), camera.updateRate))
+        {
+            camera.updateRate = 30; // Make 30 FPS the default update rate for cameras.
+        }
+        if (!parseFloat(imageElement->Attribute("width"), camera.width))
+        {
+            camera.width = 0; // That's a mandatory attribute
+        }
+        if (!parseFloat(imageElement->Attribute("height"), camera.height))
+        {
+            camera.height = 0; // That's a mandatory attribute
+        }
+        if (imageElement->Attribute("format"))
+        {
+            camera.format = ""; // That's a mandatory attribute
+        }
+        if (!parseFloat(imageElement->Attribute("near"), camera.clipNear))
+        {
+            camera.clipNear = 0; // That's a mandatory attribute
+        }
+        if (!parseFloat(imageElement->Attribute("far"), camera.clipFar))
+        {
+            camera.clipFar = 1000; // That's a mandatory attribute, but set 1000 meters just to be on the safe side
+        }
+        if (camera.clipFar < camera.clipNear)
+        {
+            camera.clipFar = camera.clipNear;
+        }
+        if (!parseFloat(imageElement->Attribute("hfov"), camera.hfov))
+        {
+            camera.hfov = 0; // That's a mandatory attribute
+        }
+        urdfLink.cameras.push_back(camera);
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
+void parseRayDim(const tinyxml2::XMLElement* element, UrdfRayDim& dim)
+{
+    if (!parseInt(element->Attribute("samples"), dim.samples))
+    {
+        dim.samples = 0;
+    }
+    if (!parseFloat(element->Attribute("resolution"), dim.resolution))
+    {
+        dim.resolution = 0;
+    }
+    if (!parseFloat(element->Attribute("min_angle"), dim.minAngle))
+    {
+        dim.minAngle = 0;
+    }
+    if (!parseFloat(element->Attribute("max_angle"), dim.maxAngle))
+    {
+        dim.maxAngle = 0;
+    }
+}
+
+bool parseRay(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    UrdfRay ray;
+    ray.name = std::string(element->Attribute("name"));
+    parseFloat(element->Attribute("update_rate"), ray.updateRate);
+    if (element->Attribute("isaac_sim_config"))
+    {
+        ray.isaacSimConfig = std::string(element->Attribute("isaac_sim_config"));
+    }
+    CARB_LOG_INFO("Parsing LIDAR %s", ray.name.c_str());
+    parseOrigin(*element, ray.origin);
+    auto rayElement = element->FirstChildElement("ray");
+    if (rayElement)
+    {
+        auto horizontal = rayElement->FirstChildElement("horizontal");
+
+        auto vertical = rayElement->FirstChildElement("vertical");
+
+        // auto range = element->FirstChildElement("range");
+
+
+        // if (range)
+        // {
+        //     if (!parseFloat(range->Attribute("min"), ray.min))
+        //     {
+        //         ray.min = 0;
+        //     }
+        //     if (!parseFloat(range->Attribute("max"), ray.max))
+        //     {
+        //         ray.max = 0;
+        //     }
+        //     if (!parseFloat(range->Attribute("resolution"), ray.resolution))
+        //     {
+        //         ray.resolution = 0;
+        //     }
+        // }
+        if (horizontal)
+        {
+            parseRayDim(horizontal, ray.horizontal);
+            ray.hasHorizontal = true;
+        }
+        if (vertical)
+        {
+            parseRayDim(vertical, ray.vertical);
+            ray.hasVertical = true;
+        }
+    }
+
+    urdfLink.lidars.push_back(ray);
+    return true;
+}
+bool parseImu(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseMagnetometer(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseGps(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseForceSensor(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseContact(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseSonar(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseRfidTag(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseRfid(const tinyxml2::XMLElement* element, UrdfLink& urdfLink)
+{
+    return false;
+}
+bool parseSensors(const XMLElement& root, std::map<std::string, UrdfLink>& urdfLinks)
+{
+    // Define a type for function pointers
+    using ParseFunction = std::function<bool(const tinyxml2::XMLElement*, UrdfLink&)>;
+    static std::vector<ParseFunction> parseFunctions = {
+        parseCamera, parseRay,
+        //! Other sensors are not officially supported in URDF yet, but leaving skeleton here for future use
+        // parseImu,
+        // parseMagnetometer,
+        // parseGps,
+        // parseForceSensor,
+        // parseContact,
+        // parseSonar,
+        // parseRfidTag,
+        // parseRfid
+    };
+
+    for (auto sensorElement = root.FirstChildElement("sensor"); sensorElement;
+         sensorElement = sensorElement->NextSiblingElement("sensor"))
+    {
+        CARB_LOG_INFO("Parsing Sensor");
+        UrdfSensorType type;
+        auto parentElement = sensorElement->FirstChildElement("parent");
+        if (parentElement)
+        {
+            auto parent_link = parentElement->Attribute("link");
+            auto link = urdfLinks.find(parent_link);
+            if (link != urdfLinks.end())
+            {
+                if (parseSensorType(*sensorElement, type))
+                {
+
+                    if (!parseFunctions[static_cast<int>(type)](sensorElement, link->second))
+                    {
+                        auto name = sensorElement->Attribute("name");
+                        CARB_LOG_ERROR("Error parsing sensor %s.", name);
+                    }
+                }
+                else
+                {
+                    auto name = sensorElement->Attribute("name");
+                    auto type = sensorElement->Attribute("type");
+                    CARB_LOG_WARN("Sensor %s not parsed: Sensor type unsupported (%s)", name, type);
+                }
+            }
+        }
+    }
+    return true;
+}
 
 // bool parseSpringGroup(const XMLElement& element, UrdfSpringGroup& springGroup)
 // {
@@ -1241,6 +1539,13 @@ bool parseRobot(const XMLElement& root, UrdfRobot& urdfRobot)
     {
         return false;
     }
+    if (!parseSensors(root, urdfRobot.links))
+    {
+    }
+    if (!findRootLink(urdfRobot.links, urdfRobot.joints, urdfRobot.rootLink))
+    {
+        return false;
+    }
     // if (!parseSoftActuators(root, urdfRobot.softActuators))
     // {
     //     return false;
@@ -1254,9 +1559,9 @@ bool parseUrdf(const std::string& urdfPackagePath, const std::string& urdfFileRe
 
     //    #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
     //    path = GetFilePathByPlatform((urdfPackagePath + "\\" + urdfFileRelativeToPackage).c_str());
-    //#else
+    // #else
     //    path = GetFilePathByPlatform((urdfPackagePath + "/" + urdfFileRelativeToPackage).c_str());
-    //#endif
+    // #endif
 
     path = urdfPackagePath + "/" + urdfFileRelativeToPackage;
 
@@ -1274,6 +1579,42 @@ bool parseUrdf(const std::string& urdfPackagePath, const std::string& urdfFileRe
     if (!root)
     {
         printf("*** Empty document '%s' \n", path.c_str());
+        return false;
+    }
+
+    if (!parseRobot(*root, urdfRobot))
+    {
+        return false;
+    }
+
+    // std::cout << urdfRobot << std::endl;
+
+    return true;
+}
+
+bool parseUrdfString(const std::string& urdf_str, UrdfRobot& urdfRobot)
+{
+
+    //    #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+    //    path = GetFilePathByPlatform((urdfPackagePath + "\\" + urdfFileRelativeToPackage).c_str());
+    // #else
+    //    path = GetFilePathByPlatform((urdfPackagePath + "/" + urdfFileRelativeToPackage).c_str());
+    // #endif
+
+    CARB_LOG_INFO("Loading URDF from memory");
+    CARB_LOG_INFO("%s", urdf_str.c_str());
+    // Weird stack smashing error with tinyxml2 when the descructor is called
+    static tinyxml2::XMLDocument doc;
+    if (doc.Parse(urdf_str.c_str()) != XML_SUCCESS)
+    {
+        printf("*** Failed to load '%s'", urdf_str.c_str());
+        return false;
+    }
+
+    XMLElement* root = doc.RootElement();
+    if (!root)
+    {
+        printf("*** Empty document '%s' \n", urdf_str.c_str());
         return false;
     }
 

@@ -410,6 +410,12 @@ def get_style():
             "Button:hovered": {"background_color": BUTTON_BACKGROUND_HOVERED_COLOR},
             "Button:pressed": {"background_color": BUTTON_BACKGROUND_PRESSED_COLOR},
             "Button.Label:disabled": {"color": BUTTON_LABEL_DISABLED_COLOR},
+            "StringField": {
+                "background_color": FIELD_BACKGROUND,
+                "font_size": FONT_SIZE,
+                "color": FIELD_TEXT_COLOR,
+                "border_radius": BORDER_RADIUS,
+            },
             "Field::models": {
                 "background_color": FIELD_BACKGROUND,
                 "font_size": FONT_SIZE,

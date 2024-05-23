@@ -6,12 +6,13 @@ keywords = ["app"]
 
 [dependencies]
 "omni.app.dev" = {}
-"omni.usd.schema.physx" = {}
+"omni.physx.bundle" = {}
 "omni.importer.urdf" = {}
 
 [settings]
 app.window.title = "URDF Importer"
 app.settings.persistent = true
+exts."omni.kit.test".includeTests.0 = "*omni.importer.urdf*"
 
 [settings.app.exts]
 folders.'++' = ["${app}/../exts"] # Make extensions from this repo available.

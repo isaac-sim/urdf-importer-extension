@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,15 @@ std::string getPathStem(const char* path);
 std::vector<std::string> getFileListRecursive(const std::string& dir, bool sorted = true);
 
 std::string makeValidUSDIdentifier(const std::string& name);
+
+std::string getParent(const std::string& filePath);
+
+bool createSymbolicLink(const std::string& target, const std::string& link);
+
+std::string toLowercase(const std::string& str);
+
+bool hasExtension(const std::string& filename, const std::string& extension);
+
 }
 }
 }

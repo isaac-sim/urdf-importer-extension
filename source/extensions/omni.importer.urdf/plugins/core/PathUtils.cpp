@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -332,6 +332,72 @@ std::string makeValidUSDIdentifier(const std::string& name)
     }
 
     return validName;
+}
+
+
+std::string getParent(const std::string& filePath)
+{
+    size_t found = filePath.find_last_of("/\\");
+    if (found != std::string::npos)
+    {
+        return filePath.substr(0, found);
+    }
+    return "";
+}
+
+bool createSymbolicLink(const std::string& target, const std::string& link)
+{
+#ifdef _WIN32
+    // Windows implementation
+    // Convert std::string to LPCWSTR (wide-character string) for Windows API function
+    LPCWSTR lpSourcePath = reinterpret_cast<LPCWSTR>(target.c_str());
+    LPCWSTR lpLinkPath = reinterpret_cast<LPCWSTR>(link.c_str());
+    if (!CreateSymbolicLink(lpLinkPath, lpSourcePath, 0))
+    {
+        CARB_LOG_ERROR("Failed to create symbolic link: %s -> %s.\n Error Code: %lu", target.c_str(), link.c_str(),
+                       GetLastError());
+        return false;
+    }
+#elif __linux__
+    // Linux implementation
+    if (symlink(target.c_str(), link.c_str()) != 0)
+    {
+        CARB_LOG_ERROR("Failed to create symbolic link: %s -> %s", target.c_str(), link.c_str());
+        return false;
+    }
+#else
+#    error "Unsupported platform"
+#endif
+    return true;
+}
+
+// Function to convert a string to lowercase
+std::string toLowercase(const std::string& str)
+{
+    std::string result = str;
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+bool hasExtension(const std::string& filename, const std::string& extension)
+{
+    // Get the position of the last dot in the filename
+    size_t dotPosition = filename.find_last_of('.');
+
+    // If there's no dot, it means there's no extension
+    if (dotPosition == std::string::npos)
+    {
+        return false;
+    }
+
+    // Get the substring after the dot (the extension) and convert to lowercase
+    std::string fileExtension = toLowercase(filename.substr(dotPosition + 1));
+
+    // Convert the extension to check to lowercase
+    std::string extensionToCheckLowercase = toLowercase(extension);
+
+    // Compare the lowercase extension with the lowercase extension to check
+    return fileExtension == extensionToCheckLowercase;
 }
 
 }

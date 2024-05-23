@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import asyncio
+import json
 import os
 
 import numpy as np
@@ -24,7 +25,7 @@ import omni.kit.commands
 #   For most things refer to unittest docs: https://docs.python.org/3/library/unittest.html
 import omni.kit.test
 import pxr
-from pxr import Gf, PhysicsSchemaTools, Sdf, UsdGeom, UsdPhysics, UsdShade
+from pxr import Gf, PhysicsSchemaTools, PhysxSchema, Sdf, UsdGeom, UsdPhysics, UsdShade
 
 
 # Having a test class dervived from omni.kit.test.AsyncTestCase declared on the root of module will make it auto-discoverable by omni.kit.test
@@ -91,6 +92,14 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         self.assertAlmostEqual(fingerLink.GetAttribute("physics:diagonalInertia").Get()[0], 2.0)
         self.assertAlmostEqual(fingerLink.GetAttribute("physics:mass").Get(), 3)
 
+        fingerLink3 = stage.GetPrimAtPath("/test_basic/finger_link_3")
+        self.assertAlmostEqual(fingerLink3.GetAttribute("physics:diagonalInertia").Get()[0], 0.001002)
+        print(
+            fingerLink3.GetAttribute("physics:principalAxes").Get().GetReal(),
+            fingerLink3.GetAttribute("physics:principalAxes").Get().GetImaginary(),
+        )
+        self.assertAlmostEqual(fingerLink3.GetAttribute("physics:principalAxes").Get().GetReal(), 0.88047838211059)
+
         # Start Simulation and wait
         self._timeline.play()
         await omni.kit.app.get_app().next_update_async()
@@ -99,6 +108,42 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         self._timeline.stop()
 
         self.assertAlmostEqual(UsdGeom.GetStageMetersPerUnit(stage), 1.0)
+        pass
+
+    async def test_urdf_sensors(self):
+
+        urdf_path = os.path.abspath(self._extension_path + "/data/urdf/tests/test_sensor.urdf")
+        dest_path = os.path.abspath(self.dest_path + "/test_sensor.usd")
+        status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
+
+        import_config.import_inertia_tensor = True
+        omni.kit.commands.execute(
+            "URDFParseAndImportFile", urdf_path=urdf_path, import_config=import_config, dest_path=dest_path
+        )
+        await omni.kit.app.get_app().next_update_async()
+        stage = pxr.Usd.Stage.Open(dest_path)
+        await omni.kit.app.get_app().next_update_async()
+
+        camera_prim = stage.GetPrimAtPath("/test_sensor/link_1/camera")
+
+        self.assertAlmostEqual(UsdGeom.Camera(camera_prim).GetFocalLengthAttr().Get(), 10.477462768554688)
+
+        basic_lidar = stage.GetPrimAtPath("/test_sensor/link_1/basic_lidar")
+        self.assertEqual(basic_lidar.GetAttribute("sensorModelConfig").Get(), "test_sensor_basic_lidar")
+        with (
+            open(self.dest_path + "/test_sensor_basic_lidar.json") as f1,
+            open(self._extension_path + "/data/lidar_sensor_template/test_sensor_basic_lidar.json", "r") as f2,
+        ):
+            generated = json.load(f1)
+            reference = json.load(f2)
+
+            self.assertEqual(generated, reference)
+        custom_lidar = stage.GetPrimAtPath("/test_sensor/link_1/custom_lidar")
+        self.assertEqual(custom_lidar.GetAttribute("sensorModelConfig").Get(), "lidar_template")
+
+        preconfigured_lidar = stage.GetPrimAtPath("/test_sensor/link_1/preconfigured_lidar")
+        self.assertEqual(preconfigured_lidar.GetAttribute("sensorModelConfig").Get(), "Velodyne_VLS128")
+
         pass
 
     async def test_urdf_massless(self):
@@ -115,8 +160,13 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         prim = stage.GetPrimAtPath("/test_massless")
         self.assertNotEqual(prim.GetPath(), Sdf.Path.emptyPath)
 
+        rootLink = stage.GetPrimAtPath("/test_massless/root_link")
+        self.assertEqual(rootLink.GetAttribute("physics:mass").Get(), 0)
+
         no_mass_no_collision_no_inertia = stage.GetPrimAtPath("/test_massless/no_mass_no_collision_no_inertia")
-        self.assertAlmostEqual(no_mass_no_collision_no_inertia.GetAttribute("physics:diagonalInertia").Get()[0], 0.00001)
+        self.assertAlmostEqual(
+            no_mass_no_collision_no_inertia.GetAttribute("physics:diagonalInertia").Get()[0], 0.00001
+        )
         self.assertAlmostEqual(no_mass_no_collision_no_inertia.GetAttribute("physics:mass").Get(), 0.000001)
 
         mass_no_collision_no_inertia = stage.GetPrimAtPath("/test_massless/mass_no_collision_no_inertia")
@@ -126,7 +176,6 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         mass_collision_no_inertia = stage.GetPrimAtPath("/test_massless/mass_collision_no_inertia")
         self.assertAlmostEqual(mass_collision_no_inertia.GetAttribute("physics:diagonalInertia").Get()[0], 0.0)
         self.assertAlmostEqual(mass_collision_no_inertia.GetAttribute("physics:mass").Get(), 10.0)
-
 
         self.assertAlmostEqual(UsdGeom.GetStageMetersPerUnit(stage), 1.0)
         pass
@@ -165,6 +214,18 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
 
         self.assertAlmostEqual(UsdGeom.GetStageMetersPerUnit(stage), 1.0)
         stage = None
+        pass
+
+    async def test_urdf_save_twice_to_file(self):
+
+        urdf_path = os.path.abspath(self._extension_path + "/data/urdf/tests/test_basic.urdf")
+        dest_path = os.path.abspath(self.dest_path + "/test_basic.usd")
+        await self.test_urdf_save_to_file()
+        await omni.kit.app.get_app().next_update_async()
+        stats = os.stat(dest_path)
+        await self.test_urdf_save_to_file()
+        stats_2 = os.stat(dest_path)
+        await omni.kit.app.get_app().next_update_async()
         pass
 
     async def test_urdf_textured_obj(self):
@@ -386,6 +447,41 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         )
         self.assertTrue(path, "/carter")
         # TODO add checks here
+
+    async def test_urdf_parse_mimic(self):
+
+        urdf_path = os.path.abspath(self._extension_path + "/data/urdf/robots/cobotta_pro_900/cobotta_pro_900.urdf")
+        status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
+        import_config.parse_mimic = True
+        status, path = omni.kit.commands.execute(
+            "URDFParseAndImportFile", urdf_path=urdf_path, import_config=import_config
+        )
+        self.assertTrue(path, "/cobotta_pro_900")
+
+        stage = omni.usd.get_context().get_stage()
+        joint = stage.GetPrimAtPath("/cobotta_pro_900/onrobot_rg6_base_link/left_inner_knuckle_joint")
+        self.assertTrue(joint.HasAPI(PhysxSchema.PhysxMimicJointAPI))
+
+        mimic_api = PhysxSchema.PhysxMimicJointAPI(joint, UsdPhysics.Tokens.rotX)
+        self.assertEqual(mimic_api.GetGearingAttr().Get(), 1.0)
+        self.assertEqual(mimic_api.GetOffsetAttr().Get(), 0.0)
+
+        # self.assertIsNotNone( PhysxSchema.PhysxTendonAxisRootAPI(joint, "fixedTendon"))
+
+    async def test_urdf_ignore_parse_mimic(self):
+
+        urdf_path = os.path.abspath(self._extension_path + "/data/urdf/robots/cobotta_pro_900/cobotta_pro_900.urdf")
+        status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
+        import_config.parse_mimic = False
+        status, path = omni.kit.commands.execute(
+            "URDFParseAndImportFile", urdf_path=urdf_path, import_config=import_config
+        )
+        self.assertTrue(path, "/cobotta_pro_900")
+
+        stage = omni.usd.get_context().get_stage()
+        joint = stage.GetPrimAtPath("/cobotta_pro_900/onrobot_rg6_base_link/left_inner_knuckle_joint")
+
+        self.assertFalse(joint.HasAPI(PhysxSchema.PhysxMimicJointAPI))
 
     async def test_urdf_franka(self):
 

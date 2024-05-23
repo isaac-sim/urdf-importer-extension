@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,7 +53,15 @@ bool parseLinks(const tinyxml2::XMLElement& root, std::map<std::string, UrdfLink
 
 bool parseJoints(const tinyxml2::XMLElement& root, std::map<std::string, UrdfJoint>& urdfJoints);
 
+bool parseSensors(const tinyxml2::XMLElement& root, std::map<std::string, UrdfLink>& urdfLinks);
+
 bool parseUrdf(const std::string& urdfPackagePath, const std::string& urdfFileRelativeToPackage, UrdfRobot& urdfRobot);
+
+bool parseUrdfString(const std::string& urdf_str, UrdfRobot& urdfRobot);
+
+bool findRootLink(const std::map<std::string, UrdfLink>& urdfLinks,
+                  const std::map<std::string, UrdfJoint>& urdfJoints,
+                  std::string& rootLinkName);
 
 } // namespace urdf
 }

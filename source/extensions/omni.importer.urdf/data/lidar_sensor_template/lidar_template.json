@@ -1,0 +1,92 @@
+{
+  "class": "sensor",
+  "type": "lidar",
+  "name": "Simple Solid State",
+  "driveWorksId": "GENERIC",
+  "profile":
+  {
+    "scanType": "solidState",
+    "intensityProcessing": "normalization",
+    "rayType": "IDEALIZED",
+    "nearRangeM": 1.0,
+    "farRangeM": 200.0,
+
+    "effectiveApertureSize": 0.0145,
+    "focusDistM": 0.16,
+
+    "startAzimuthDeg": -50.0,
+    "endAzimuthDeg": 50.0,
+
+    "upElevationDeg": 8.0,
+    "downElevationDeg": -8.0,
+
+    "rangeResolutionM": 0.004,
+
+    "rangeAccuracyM": 0.025,
+
+    "avgPowerW": 0.002,
+    "minReflectance": 0.1,
+    "minReflectanceRange": 270.0,
+    "wavelengthNm": 1550.0,
+    "pulseTimeNs": 6,
+
+    "maxReturns": 2,
+
+    "scanRateBaseHz": 30.0,
+    "reportRateBaseHz": 30,
+
+    "numberOfEmitters": 12,
+    "numberOfChannels": 12,
+
+    "rangeCount": 1,
+    "ranges": [
+      {"min": 0.5, "max": 300}
+    ],
+
+    "azimuthErrorMean": 0.0,
+    "azimuthErrorStd": 0.025,
+    "elevationErrorMean": 0.0,
+    "elevationErrorStd": 0.025,
+
+    "stateResolutionStep": 1,
+
+    "numLines": 3,
+    "numRaysPerLine": [4, 4, 4],
+
+    "emitterStateCount": 1,
+    "emitterStates": [
+      {
+        "azimuthDeg": [
+          -2, -1, 1, 2,
+          -1.5, -0.5, 0.5, 1.5,
+          -2.4, -1.4, 1.4, 2.4
+        ], "_commentOnAzimuth": "Flat Scan is expecting equal angles between each emitter in the line it uses",
+        "elevationDeg": [
+          -8, -8, -8, -8,
+           0, 0,  0,  0,
+            8,  8,  8, 8
+          ], "_commentOnElevation": "Flat Scan use the line with elevation nearest 0 as it's first line entry",
+		    "fireTimeNs": [
+          0,3300000,6600000,9900000,
+          13300000,16600000,19900000,23300000,
+          26600000,29900000,31500000,33300000],
+        "channelId": [
+          0,1,2,3,
+          4,5,6,7,
+          8,9,10,11],
+        "rangeId": [
+          0, 0, 0, 0,
+          0, 0, 0, 0,
+          0, 0, 0, 0
+        ],
+        "bank": [
+          11, 10, 9, 8,
+           7,  6, 5, 4,
+           3,  2, 1, 0
+        ]
+      }
+    ],
+
+    "intensityMappingType": "LINEAR"
+  }
+}

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +19,10 @@
 #include "UsdPCH.h"
 // clang-format on
 
+#include "Urdf.h"
+
 #include "import/ImportHelpers.h"
 #include "import/UrdfImporter.h"
-#include "Urdf.h"
 
 #include <carb/PluginUtils.h>
 #include <carb/logging/Log.h>
@@ -45,9 +46,79 @@ CARB_PLUGIN_IMPL_DEPS(omni::kit::IApp, carb::logging::ILogging)
 namespace
 {
 
+
+omni::importer::urdf::UrdfRobot parseUrdfString(const std::string& urdf, omni::importer::urdf::ImportConfig& importConfig)
+{
+
+
+    omni::importer::urdf::UrdfRobot robot;
+
+    // std::string filename = assetRoot + "/" + assetName;
+    {
+
+
+        if (parseUrdfString(urdf, robot))
+        {
+        }
+        else
+        {
+            CARB_LOG_ERROR("Failed to parse URDF string '%s'", urdf.c_str());
+            return robot;
+        }
+
+        if (importConfig.mergeFixedJoints)
+        {
+            collapseFixedJoints(robot);
+        }
+
+        if (importConfig.collisionFromVisuals)
+        {
+            addVisualMeshToCollision(robot);
+        }
+
+        for (auto& joint : robot.joints)
+        {
+            joint.second.drive.targetType = importConfig.defaultDriveType;
+            if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::POSITION)
+            {
+                if (importConfig.overrideJointDynamics)
+                // set position gain
+                {
+                    joint.second.drive.strength = importConfig.defaultDriveStrength;
+                    joint.second.drive.damping = importConfig.defaultPositionDriveDamping;
+                }
+                else
+                {
+                    joint.second.drive.damping = joint.second.dynamics.damping;
+                }
+            }
+            else if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::VELOCITY)
+            {
+                // set position gain to zero so we can achieve velocity control
+                // joint.second.dynamics.stiffness = 0.0f;
+                if (importConfig.overrideJointDynamics)
+                {
+                    joint.second.drive.strength = importConfig.defaultDriveStrength;
+                    joint.second.drive.damping = 0.0f;
+                }
+            }
+            else if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::NONE)
+            {
+                joint.second.drive.strength = 0.0f;
+                joint.second.drive.damping = 0.0f;
+            }
+            else
+            {
+                CARB_LOG_ERROR("Unknown drive target type %d", (int)joint.second.drive.targetType);
+            }
+        }
+    }
+    return robot;
+}
+
 omni::importer::urdf::UrdfRobot parseUrdf(const std::string& assetRoot,
-                                       const std::string& assetName,
-                                       omni::importer::urdf::ImportConfig& importConfig)
+                                          const std::string& assetName,
+                                          omni::importer::urdf::ImportConfig& importConfig)
 {
     omni::importer::urdf::UrdfRobot robot;
 
@@ -81,32 +152,31 @@ omni::importer::urdf::UrdfRobot parseUrdf(const std::string& assetRoot,
             joint.second.drive.targetType = importConfig.defaultDriveType;
             if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::POSITION)
             {
+                joint.second.drive.strength = importConfig.defaultDriveStrength;
+                if (importConfig.overrideJointDynamics)
                 // set position gain
-                if (importConfig.defaultDriveStrength > 0)
                 {
-                    joint.second.dynamics.stiffness = importConfig.defaultDriveStrength;
+                    joint.second.drive.damping = importConfig.defaultPositionDriveDamping;
                 }
-                // set velocity gain
-                if (importConfig.defaultPositionDriveDamping > 0)
+                else
                 {
-                    joint.second.dynamics.damping = importConfig.defaultPositionDriveDamping;
+                    joint.second.drive.damping = joint.second.dynamics.damping;
                 }
             }
             else if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::VELOCITY)
             {
-                // set position gain
-                joint.second.dynamics.stiffness = 0.0f;
-                // set velocity gain
-                if (importConfig.defaultDriveStrength > 0)
+                // set position gain to zero so we can achieve velocity control
+                // joint.second.dynamics.stiffness = 0.0f;
+                joint.second.drive.strength = importConfig.defaultDriveStrength;
+                if (importConfig.overrideJointDynamics)
                 {
-                    joint.second.dynamics.damping = importConfig.defaultDriveStrength;
+                    joint.second.drive.damping = 0.0f;
                 }
             }
             else if (joint.second.drive.targetType == omni::importer::urdf::UrdfJointTargetType::NONE)
             {
-                // set both gains to 0
-                joint.second.dynamics.stiffness = 0.0f;
-                joint.second.dynamics.damping = 0.0f;
+                joint.second.drive.strength = 0.0f;
+                joint.second.drive.damping = 0.0f;
             }
             else
             {
@@ -120,7 +190,8 @@ std::string importRobot(const std::string& assetRoot,
                         const std::string& assetName,
                         const omni::importer::urdf::UrdfRobot& robot,
                         omni::importer::urdf::ImportConfig& importConfig,
-                        const std::string& stage_identifier = "")
+                        const std::string& stage_identifier = "",
+                        const bool getArticulationRoot = false)
 {
 
     omni::importer::urdf::UrdfImporter urdfImporter(assetRoot, assetName, importConfig);
@@ -140,6 +211,7 @@ std::string importRobot(const std::string& assetRoot,
             {
                 _stage->RemovePrim(p.GetPath());
             }
+            _stage->Save();
         }
         importConfig.makeDefaultPrim = true;
         pxr::UsdGeomSetStageUpAxis(_stage, pxr::UsdGeomTokens->z);
@@ -151,7 +223,8 @@ std::string importRobot(const std::string& assetRoot,
         const std::vector<pxr::UsdStageRefPtr> allStages = pxr::UsdUtilsStageCache::Get().GetAllStages();
         if (allStages.size() != 1)
         {
-            CARB_LOG_ERROR("Cannot determine the 'active' USD stage (%zu stages present in the USD stage cache).", allStages.size());
+            CARB_LOG_ERROR("Cannot determine the 'active' USD stage (%zu stages present in the USD stage cache).",
+                           allStages.size());
             return "";
         }
 
@@ -162,12 +235,13 @@ std::string importRobot(const std::string& assetRoot,
     if (_stage)
     {
         pxr::UsdGeomSetStageMetersPerUnit(_stage, 1.0 / importConfig.distanceScale);
-        result = urdfImporter.addToStage(_stage, robot);
+        result = urdfImporter.addToStage(_stage, robot, getArticulationRoot);
         // CARB_LOG_WARN("Import Done, saving");
         if (save_stage)
         {
             // CARB_LOG_WARN("Saving Stage %s", _stage->GetRootLayer()->GetIdentifier().c_str());
             _stage->Save();
+            _stage->Export(stage_identifier);
         }
     }
     else
@@ -230,6 +304,7 @@ void fillInterface(omni::importer::urdf::Urdf& iface)
     using namespace omni::importer::urdf;
     memset(&iface, 0, sizeof(iface));
     iface.parseUrdf = parseUrdf;
+    iface.parseUrdfString = parseUrdfString;
     iface.importRobot = importRobot;
     iface.getKinematicChain = getKinematicChain;
 }

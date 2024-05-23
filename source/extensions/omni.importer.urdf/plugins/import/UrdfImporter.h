@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,14 +20,15 @@
 #include "../UsdPCH.h"
 // clang-format on
 
+#include "../Urdf.h"
+#include "../UrdfTypes.h"
+#include "../math/core/maths.h"
 #include "../parse/UrdfParser.h"
 #include "KinematicChain.h"
 #include "MeshImporter.h"
-#include "../math/core/maths.h"
-#include "../Urdf.h"
-#include "../UrdfTypes.h"
 
 #include <carb/logging/Log.h>
+
 #include <pxr/usd/usdPhysics/articulationRootAPI.h>
 #include <pxr/usd/usdPhysics/collisionAPI.h>
 #include <pxr/usd/usdPhysics/driveAPI.h>
@@ -65,7 +66,7 @@ public:
     // Creates and populates a GymAsset
     UrdfRobot createAsset();
 
-    std::string addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot& robot);
+    std::string addToStage(pxr::UsdStageWeakPtr stage, const UrdfRobot& robot, const bool getArticulationRoot);
 
 
 private:

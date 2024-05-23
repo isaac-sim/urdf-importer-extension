@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,8 @@ struct ImportConfig
     std::string instanceableMeshUsdPath = "./instanceable_meshes.usd";
 
     bool collisionFromVisuals = false; // Create collision geometry from visual geometry when missing collision.
+    bool parseMimic = true;
+    bool overrideJointDynamics = false;
 };
 
 
@@ -62,12 +64,15 @@ struct Urdf
 
     // Parses a urdf file into a UrdfRobot data structure
     UrdfRobot(CARB_ABI* parseUrdf)(const std::string& assetRoot, const std::string& assetName, ImportConfig& importConfig);
+    // Parses a urdf data string into a UrdfRobot data structure
+    UrdfRobot(CARB_ABI* parseUrdfString)(const std::string& urdf_str, ImportConfig& importConfig);
     // Imports a UrdfRobot into the stage
     std::string(CARB_ABI* importRobot)(const std::string& assetRoot,
                                        const std::string& assetName,
                                        const UrdfRobot& robot,
                                        ImportConfig& importConfig,
-                                       const std::string& stage);
+                                       const std::string& stage,
+                                       const bool getArticulationRoot);
 
     pybind11::dict(CARB_ABI* getKinematicChain)(const UrdfRobot& robot);
 };

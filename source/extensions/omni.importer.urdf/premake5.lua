@@ -46,13 +46,14 @@ end
 
 local ext = get_current_extension_info()
 project_ext (ext)
-
 -- C++ Carbonite plugin
 project_ext_plugin(ext, "omni.importer.urdf.plugin")
     symbols "On"
     exceptionhandling "On"
     rtti "On"
     staticruntime "On"
+
+    cppdialect "C++17"
 
     flags { "FatalCompileWarnings", "MultiProcessorCompile", "NoPCH", "NoIncrementalLink" }
     removeflags { "FatalCompileWarnings", "UndefinedIdentifiers" }
@@ -66,9 +67,11 @@ project_ext_plugin(ext, "omni.importer.urdf.plugin")
         "%{root}/_build/target-deps/nv_usd/%{cfg.buildcfg}/include",
         "%{root}/_build/target-deps/usd_ext_physics/%{cfg.buildcfg}/include",
         "%{root}/_build/target-deps/assimp/include",
+        "%{root}/_build/target-deps/omni_physics/include",
         "%{root}/_build/target-deps/python/include",
         "%{root}/_build/target-deps/tinyxml2/include",
         "%{root}/_build/target-deps/omni_client_library/include",
+        "%{target_deps}/rapidjson/include",
     }
 
     libdirs {
@@ -96,6 +99,9 @@ project_ext_plugin(ext, "omni.importer.urdf.plugin")
         }
     else
         filter { "system:windows", "platforms:x86_64" }
+            toolset "v142"
+            filter { "system:windows", "platforms:x86_64" }
+            defines { "_WIN32" }
             link_boost_for_windows({"boost_python310"})
         filter {}
         libdirs {
@@ -113,7 +119,7 @@ project_ext_bindings {
     src = "bindings",
     target_subdir = "omni/importer/urdf"
 }
-
+cppdialect "C++17"
 repo_build.prebuild_link {
     { "python/scripts", ext.target_dir.."/omni/importer/urdf/scripts" },
     { "python/tests", ext.target_dir.."/omni/importer/urdf/tests" },

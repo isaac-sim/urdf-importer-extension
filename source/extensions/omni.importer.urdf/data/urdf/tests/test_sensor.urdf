@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_sensor">
+
+  <link name="root_link"/>
+
+  <joint name="root_to_base" type="fixed">
+    <parent link="root_link"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <sphere radius="0.2"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="0.2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="base_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <axis xyz="0 0 1"/>
+    <origin xyz="0 0 0.45"/>
+  </joint>
+
+  <link name="link_1">
+    <visual>
+      <geometry>
+        <cylinder length="0.8" radius=".1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.8" radius=".1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <sensor name="camera" type="camera" update_rate="30">
+    <parent link="link_1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <camera>
+      <image width="640" height="480" hfov="1.5708" format="RGB8" near="0.01" far="50.0"/>
+    </camera>
+  </sensor>
+
+  <sensor name="basic_lidar" type="ray" update_rate="30">
+    <parent link="link_1"/>
+    <origin xyz="0.5 0 0" rpy="0 0 0"/>
+    <ray>
+      <horizontal samples="21" resolution="1" min_angle="-0.785398" max_angle="0.785398"/>
+      <vertical samples="20" resolution="1" min_angle="-0.523599" max_angle="0.523599"/>
+    </ray>
+  </sensor>
+
+  <sensor name="custom_lidar" type="ray" update_rate="30" isaac_sim_config="../lidar_sensor_template/lidar_template.json">
+    <parent link="link_1"/>
+    <origin xyz="0.5 0.5 0" rpy="0 0 0"/>
+  </sensor>
+
+
+  <sensor name="preconfigured_lidar" type="ray" update_rate="30" isaac_sim_config="Velodyne_VLS128">
+    <parent link="link_1"/>
+    <origin xyz="0.5 1.5 0" rpy="0 0 0"/>
+  </sensor>
+
+
+  <sensor name="unsupported_sensor" type="unsupported" update_rate="30">
+    <parent link="link_1"/>
+    <origin xyz="0.5 1.5 0" rpy="0 0 0"/>
+  </sensor>
+
+
+</robot>

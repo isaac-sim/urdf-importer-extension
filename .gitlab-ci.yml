@@ -1,0 +1,593 @@
+include:
+# external
+  - project: 'omniverse/devplat/gitlab/templates/common/kit-extension'
+    file: 'modules/complete-pipeline.yml'
+    ref: v1_latest
+
+
+
+# ==============================================================================================================
+# More variables can be found in common.yml - here we put the ones controlling the jobs workflow
+variables:
+  OSEC_NSPECT_ID: "NSPECT-VNHT-O4C6"
+  OSEC_CHECKMARX_ENABLED: 'false'
+  OSEC_GITLAB_SAST_ENABLED: 'false'
+  OSEC_PULSE_TRUFFLEHOG_ENABLED: 'false'
+  OSEC_OMNI_PULSE_ENABLED: 'false'
+  OSEC_README_ENABLED: 'false' # WARNING: Also have the init() function get_nspectid_from_repo_toml() in there...
+  ALLOW_PUBLISH_DOCS:
+    value: "true"
+    description: "Set to true to publish docs"
+  ALLOW_PUBLISH_TO_LAUNCHER:
+    value: "false"
+    description: "Set to true to for Kit apps that are published to the Launcher. That adds jobs for that."
+  ALLOW_PUBLISH_EXTENSIONS:
+    value: "true"
+    description: "Set to true to publish extension updates."
+  ALLOW_PUBLISH_CONTAINERS:
+    value: "false"
+    description: "Set to true to publish containers to NGC."
+  ALLOW_SECURITY_SCAN:
+    value: "false"
+    description: "Set to true to trigger a security scan as a child pipeline (non blocking)"
+  ALLOW_SCHEDULE_PIPELINE:
+    value: "true"
+    description: "Set to 'false' to disable schedule pipeline on a all jobs, useful to set it back on only some jobs."
+  ALLOW_TAG_PIPELINE:
+    value: "true"
+    description: "Set to 'false' to disable tag pipeline on a all push jobs."
+  RUN_EXTENSION_BENCHMARKS:
+    value: "false"
+    description: "Set to true to run benchmarks for kit extensions."
+  OMNI_CI_ENABLE_CXX_COVERAGE:
+    value: "false"
+    description: "Set to 'true' to enable C++ code coverage testing."
+  OMNI_CI_ENABLE_SANITIZERS:
+    value: "false"
+    description: "Set to 'true' to enable C++ sanitizer builds."
+  RUN_BUMP_VERSION:
+    value: "false"
+    description: "Set to true to run bump version. Only happens on schedule."
+  RUN_NIGHTLY_TESTS:
+    value: "false"
+    description: "Set to true to run nightly tests. Only happens on schedule."
+  RUN_DOCS_BUILD:
+    value: "true"
+    description: "Set to true to build omni docs. Only happens on schedule."
+
+
+# ==============================================================================================================
+.check-common:
+  stage: check
+  timeout: 20 minutes
+  interruptible: true
+  rules:
+  - if: $RUN_BUMP_VERSION == "true"
+    when: never
+  - !reference [.rules-workflow, rules]
+
+.repo-artifacts:
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+    - _repo/repo.log
+    - _repo/repolog*.txt
+
+
+# ==============================================================================================================
+# # Rule for running nightly tests on scheduled pipeline on develop and release branches
+# .rules-bump-version:
+#   rules:
+#   - if: $CI_COMMIT_TITLE =~ /^Bumped version/
+#     when: never
+#   - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_BUMP_VERSION == "true" && ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\/.*/)
+
+# .rules-build-docs:
+#   rules:
+#   # allow schedule pipeline if RUN_DOCS_BUILD is set to "true" and its scheduled
+#   - if: $CI_PIPELINE_SOURCE == "schedule" && $RUN_DOCS_BUILD == "true"
+#     when: always
+#   - when: never
+
+
+# # ==============================================================================================================
+# # Rule for running publisher on push on develop and release branches
+# .rules-version-changed:
+#   rules:
+#   - if: $CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH =~ /^release\/.*/)
+#     changes:
+#     - VERSION.md
+#     - VERSION
+
+
+# # ==============================================================================================================
+# # Job that ensures that the MR has a JIRA ticket reference in the title
+# check-jira-ticket:
+#   extends:
+#   - .check-common
+#   - .check-jira-ticket
+#   - .omni_nvks_runner
+#   allow_failure: true
+#   rules:
+#   - !reference [.rules-mr, rules]
+
+
+# # ==============================================================================================================
+# # Job to dump out the current configuration environment variables
+# dump-env-vars:
+#   extends:
+#   - .check-common
+#   - .dump-env-vars
+#   - .omni_nvks_runner
+#   allow_failure: true
+#   when: manual
+#   rules:
+#   - !reference [.rules-workflow, rules]
+
+
+# # ==============================================================================================================
+# check-code-format:
+#   extends:
+#   - .check-common
+#   - .repo-artifacts
+#   - .runner-utility-linux-x86_64
+#   variables:
+#     GIT_DEPTH: 0 # needed to update copyrights
+#   script:
+#   - ./repo.sh format --verify
+
+
+# # ==============================================================================================================
+# .build-artifacts:
+#   artifacts:
+#     when: always
+#     expire_in: 2 weeks
+#     paths:
+#     - _build/**/*.gcno # produced by the coverage build
+#     - _build/**/*.log
+#     - _build/packages/
+#     - _repo/repo.log
+#     - _repo/repolog*.txt
+
+
+# # ==============================================================================================================
+# .build-common:
+#   stage: build
+#   timeout: 1.5 hours
+#   interruptible: true
+#   extends:
+#   - .build-artifacts
+#   retry:
+#     max: 2
+#     when:
+#     - always
+#   rules:
+#   - if: $RUN_BUMP_VERSION == "true"
+#     when: never
+#   - !reference [.rules-workflow, rules]
+
+
+# # ==============================================================================================================
+# build-linux-x86_64-release:
+#   extends:
+#   - .build-common
+#   - .runner-build-linux-x86_64
+#   before_script:
+#   - set -eu
+#   - yum install -y bsdtar
+#   - !reference [.omni_s3_write_get_secrets, omni_s3_write_get_secrets]
+#   script:
+#   - ./repo.sh ci build -c release
+
+# # ==============================================================================================================
+# build-linux-x86_64-debug:
+#   extends:
+#   - .build-common
+#   - .runner-build-linux-x86_64
+#   before_script:
+#   - set -eu
+#   - yum install -y bsdtar
+#   - !reference [.omni_s3_write_get_secrets, omni_s3_write_get_secrets]
+#   script:
+#   - ./repo.sh ci build -c debug
+
+# # ==============================================================================================================
+# build-windows-x86_64-release:
+#   extends:
+#   - .build-common
+#   - .runner-build-windows-x86_64
+#   before_script:
+#   - !reference [.windows_packman_s3_creds_get_powershell, windows_packman_s3_creds_get_powershell]
+#   script:
+#   - ./repo.bat ci build -c release
+
+# # ==============================================================================================================
+# build-windows-x86_64-debug:
+#   extends:
+#   - .build-common
+#   - .runner-build-windows-x86_64
+#   before_script:
+#   - !reference [.windows_packman_s3_creds_get_powershell, windows_packman_s3_creds_get_powershell]
+#   script:
+#   - ./repo.bat ci build -c debug
+
+
+
+# # ==============================================================================================================
+# .test-artifacts:
+#   artifacts:
+#     when: always
+#     expire_in: 2 weeks
+#     paths:
+#     - _build/**/*.log
+#     - _build/*/debug/*.xml
+#     - _build/*/release/*.xml
+#     - _build/coverage.info
+#     - _build/coverage/**
+#     - _repo/repo.log
+#     - _repo/repolog*.txt
+#     - _testoutput/
+#     reports:
+#       junit:
+#       - _build/*/debug/*.xml
+#       - _build/*/release/*.xml
+#       - _testoutput/results.xml
+
+
+# # ==============================================================================================================
+# .test-common:
+#   stage: test
+#   timeout: 2 hour
+#   interruptible: true
+#   extends:
+#   - .test-artifacts
+#   allow_failure: true
+#   rules:
+#   - if: $RUN_BUMP_VERSION == "true" || $RUN_DOCS_BUILD == "true"
+#     when: never
+#   - !reference [.rules-workflow, rules]
+
+
+# # ==============================================================================================================
+# test-linux-x86_64-pythontests:
+#   extends:
+#   - .test-common
+#   - .runner-test-linux-x86_64-gpu
+#   script:
+#   - ./repo.sh test
+#   after_script:
+#   - !reference [.datadog-test-visibility-linux-x86_64, script]
+#   needs:
+#   - job: build-linux-x86_64-release
+#     artifacts: true
+
+# test-windows-x86_64-pythontests:
+#   extends:
+#   - .test-common
+#   - .runner-test-windows-x86_64-gpu
+#   script:
+#   - ./repo.bat test
+#   after_script:
+#   - !reference [.datadog-test-visibility-windows-x86_64, script]
+#   needs:
+#   - job: build-windows-x86_64-release
+#     artifacts: true
+
+# ==============================================================================================================
+# .deploy-artifacts:
+#   artifacts:
+#     when: always
+#     expire_in: 2 weeks
+#     paths:
+#     - _build/**/*.log
+#     - _repo/repo.log
+#     - _repo/repolog*.txt
+#     - _logs/**/*.log
+
+
+# # ==============================================================================================================
+# .deploy-common:
+#   stage: deploy
+#   extends:
+#   - .deploy-artifacts
+#   timeout: 1 hour
+#   interruptible: false
+#   before_script:
+#   - set -eu
+#   - !reference [.omni_codesign_get_secrets, omni_codesign_get_secrets]
+#   - !reference [.omni_s3_write_get_secrets, omni_s3_write_get_secrets]
+#   rules:
+#   - if: $RUN_DOCS_BUILD == "true" || RUN_NIGHTLY_TESTS=="true"
+#     when: never
+
+# build-docs:
+#   extends:
+#   - .build-common
+#   - .runner-build-linux-x86_64
+#   timeout: 2 hours
+#   before_script:
+#   - set -eu
+#   - yum install -y bsdtar
+#   - !reference [.omni_s3_write_get_secrets, omni_s3_write_get_secrets]
+#   script:
+#   - git clone --depth=1 -b isaac_sim --single-branch https://gitlab-master.nvidia.com/omniverse/omni-docs.git
+#   - pushd omni-docs
+#   - ./repo docs --warn-as-error=0
+#   - ./repo docs --stage sphinx
+#   - ./repo docs --stage post
+#   - popd
+#   rules:
+#   - !reference [.rules-build-docs, rules]
+#   artifacts:
+#     when: always
+#     expire_in: 2 weeks
+#     paths:
+#     - omni-docs/_build/docs
+
+
+
+
+
+# autoupdate-kit:
+#   rules:
+#    - when: never
+
+# include:
+#   - project: 'omniverse/sectools/omni-pulse'
+#     file: '/templates/nspect-pulse-scan.yml'
+#     # ref: main
+
+# nspect:
+#   extends: .nspect-scan
+#   stage: test
+#   tags: ['os/linux', 'type/docker']
+#   # allow_failure: true
+#   variables:
+#     PULSE_NSPECT_ID: "NSPECT-8CX1-LP1G"
+#     PULSE_SCAN_PROJECT: "Omniverse Isaac Sim"
+#     PULSE_SCAN_PROJECT_VERSION: "${CI_COMMIT_REF_SLUG}"
+
+#     OMNI_PULSE_TOOL_ARGS: "
+#     --target-deps-platforms linux-x86_64 windows-x86_64 \
+#     --target-deps-paths \
+#         deps/kit-sdk.packman.xml \
+#         deps/rtx-plugins.packman.xml \
+#         deps/target-deps.packman.xml \
+#         deps/isaac-sim.packman.xml \
+#     --additional-sources-path \
+#         source \
+#     --override-branches master develop 'release/*'' \
+#         "
+#   script:
+#     - set e
+#     # WAR for omni.pulse not knowing how to magically create <import path="../_build/${platform}/${config}/kit/dev/deps/rtx-target-deps.packman.xml.user">
+#     - tools/packman/packman pull deps/kit-sdk.packman.xml --platform linux-x86_64 -t config=release
+#     - tools/packman/packman pull deps/rtx-plugins.packman.xml --platform linux-x86_64 -t config=release
+#     - tools/packman/packman pull deps/omni-physics.packman.xml --platform linux-x86_64 -t config=release
+#     # - tools/packman/packman pull deps/target-deps.packman.xml --platform linux-x86_64 -t config=release
+#     # - tools/packman/packman pull deps/isaac-sim.packman.xml --platform linux-x86_64 -t config=release
+#     - tools/packman/packman pull deps/kit-sdk.packman.xml --platform windows-x86_64 -t config=release
+#     - tools/packman/packman pull deps/rtx-plugins.packman.xml --platform windows-x86_64 -t config=release
+#     - tools/packman/packman pull deps/omni-physics.packman.xml --platform windows-x86_64 -t config=release
+#     # - tools/packman/packman pull deps/target-deps.packman.xml --platform windows-x86_64 -t config=release
+#     # - tools/packman/packman pull deps/isaac-sim.packman.xml --platform windows-x86_64 -t config=release
+#     - !reference ['.nspect-scan', 'script']
+#   rules:
+#     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+#       when: manual
+#     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+#       when: always
+#     # the default branch has a scheduled scanner, disable per-commit automatic scan
+#     - if: '$CI_COMMIT_BRANCH == "develop"'
+#       when: manual
+#     - if: '$CI_COMMIT_BRANCH == "master"'
+#       when: manual
+#     # we probably don't have a scheduled scan setup for each release branch (though we should),
+#     # scan per-commit to catch some updates
+#     - if: $CI_COMMIT_REF_NAME =~ /^release\/.*$/
+#       when: always
+#     - when: never
+
+
+# ==============================================================================================================
+# By default, all platforms (windows-x86_64, linux-x86_64) are published,
+# but this can be changed in repo.toml config if necessary:
+#    [repo_publish_exts]
+#    platforms = ["linux-x86_64"]
+verify-publish-extensions:
+  extends:
+  - .deploy-common
+  - .omni_nvks_runner_with_docker
+  script:
+  - ./repo.sh build --fetch-only -rd
+  - ./repo.sh publish_exts -a --from-package -c release --verify
+  - ./repo.sh publish_exts -a --from-package -c debug --verify
+  # - ./repo.sh ci publish_extensions
+  needs:
+  # We set all dependencies as optional just in case a platform is not needed,
+  # then the yml file can override both build/test on one platform and deploy will still work.
+  - job: build-windows-x86_64
+    artifacts: true
+    optional: false
+  - job: build-linux-x86_64
+    artifacts: true
+    optional: false
+  # - job: build-windows-x86_64
+  #   artifacts: true
+  #   optional: false
+  # - job: build-linux-x86_64
+  #   artifacts: true
+  #   optional: false
+  #   - job: test-windows-x86_64-startuptests
+  #     artifacts: false
+  #     optional: true
+  #   - job: test-linux-x86_64-startuptests
+  #     artifacts: false
+  #     optional: true
+  rules:
+  - if: $ALLOW_PUBLISH_EXTENSIONS != "true"
+    when: never
+  - if: $RUN_BUMP_VERSION == "true"
+    when: never
+  - !reference [.rules-push, rules]
+  # - !reference [.rules-version-changed, rules]
+
+
+# ==============================================================================================================
+# By default, all platforms (windows-x86_64, linux-x86_64) are published,
+# but this can be changed in repo.toml config if necessary:
+#    [repo_publish_exts]
+#    platforms = ["linux-x86_64"]
+publish-extensions:
+  extends:
+  - .deploy-common
+  - .omni_nvks_runner_with_docker
+  script:
+  - ./repo.sh build --fetch-only -rd
+  - ./repo.sh publish_exts -a --from-package -c release
+  - ./repo.sh publish_exts -a --from-package -c debug
+  # - ./repo.sh ci publish_extensions
+  needs:
+  # We set all dependencies as optional just in case a platform is not needed,
+  # then the yml file can override both build/test on one platform and deploy will still work.
+  - job: build-windows-x86_64
+    artifacts: true
+    optional: false
+  - job: build-linux-x86_64
+    artifacts: true
+    optional: false
+  # - job: build-windows-x86_64-debug
+  #   artifacts: true
+  #   optional: false
+  # - job: build-linux-x86_64-debug
+  #   artifacts: true
+  #   optional: false
+  #   - job: test-windows-x86_64-startuptests
+  #     artifacts: false
+  #     optional: true
+  #   - job: test-linux-x86_64-startuptests
+  #     artifacts: false
+  #     optional: true
+  rules:
+  - if: $ALLOW_PUBLISH_EXTENSIONS != "true"
+    when: never
+  - if: $RUN_BUMP_VERSION == "true"
+    when: never
+  - !reference [.rules-version-changed, rules]
+  - !reference [.rules-push-manual, rules]
+
+
+# ==============================================================================================================
+publish-docs:
+  rules:
+  - when: never
+  needs:
+#   extends:
+#   - .deploy-common
+#   - .omni_nvks_runner_with_docker
+#   variables:
+#     # Required access tokens for publishing to S3
+#     AWS_ACCESS_KEY_ID: $AWS_OMNIVERSEDOCS_ACCESS_KEY_ID
+#     AWS_SECRET_ACCESS_KEY: $AWS_OMNIVERSEDOCS_SECRET_ACCESS_KEY
+#   needs:
+#   - job: build-windows-x86_64-release
+#     artifacts: true
+#   script:
+#   - ./repo.sh ci publish_docs
+#   rules:
+#   - if: $ALLOW_PUBLISH_DOCS != "true"
+#     when: never
+#   - if: $RUN_BUMP_VERSION == "true"
+#     when: never
+#   - !reference [.rules-version-changed, rules]
+#   - !reference [.rules-push-manual, rules]
+
+
+# ==============================================================================================================
+publish-to-launcher:
+  rules:
+  - when: never
+  needs:
+#   extends:
+#   - .deploy-common
+#   - .omni_nvks_runner_with_docker
+#   script:
+#   - ls _build/packages/
+#   - ./repo.sh publish_launcher
+#   needs:
+#   - job: sign-windows-x86_64-release
+#     artifacts: true
+#   - job: build-linux-x86_64-release
+#     artifacts: true
+#   #   - job: test-windows-x86_64-startuptests
+#   #     artifacts: false
+#   #     optional: true
+#   #   - job: test-linux-x86_64-startuptests
+#   #     artifacts: false
+#   #     optional: true
+#   retry:
+#     max: 2
+#     when:
+#     - always
+#   rules:
+#   - if: $ALLOW_PUBLISH_TO_LAUNCHER != "true"
+#     when: never
+#   - if: $RUN_BUMP_VERSION == "true"
+#     when: never
+#   - !reference [.rules-version-changed, rules]
+#   - !reference [.rules-push-manual, rules]
+#   allow_failure: true
+
+#   extends:
+#   - .deploy-common
+#   - .omni_nvks_runner_with_docker
+#   script:
+#   - ./repo.sh ci publish_to_launcher
+#   needs:
+#   - job: build-windows-x86_64-release
+#     artifacts: true
+#   - job: build-linux-x86_64-release
+#     artifacts: true
+#   rules:
+#   - if: $ALLOW_PUBLISH_TO_LAUNCHER != "true"
+#     when: never
+#   - !reference [.rules-push-manual, rules]
+#   allow_failure: true
+
+
+# ==============================================================================================================
+release-new-version:
+  rules:
+  - when: never
+
+#   extends:
+#   - .deploy-common
+#   - .omni_nvks_runner_with_docker
+#   needs: []
+#   script:
+#   - ./repo.sh ci release_new_version
+#   rules:
+#   - if: $ALLOW_PUBLISH_TO_LAUNCHER != "true"
+#     when: never
+#   - !reference [.rules-push-manual, rules]
+#   allow_failure: true
+
+
+# ==============================================================================================================
+# update Kit SDK and extensions, merge master, typically done in daily branch
+# set AUTOUPDATE_KIT=true for scheduled pipeline to run
+autoupdate-kit:
+  rules:
+  - when: never
+#   extends:
+#   - .deploy-common
+#   - .omni_nvks_runner_with_docker
+#   needs: []
+#   script:
+#   - ./repo.sh ci autoupdate_kit
+#   rules:
+#   - if: $ALLOW_PUBLISH_TO_LAUNCHER != "true"
+#     when: never
+#   - if: $AUTOUPDATE_KIT == "true" && ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "schedule")
+#     when: always

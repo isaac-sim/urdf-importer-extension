@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -105,6 +105,22 @@ enum class UrdfJointDriveType
     FORCE = 2
 };
 
+enum class UrdfSensorType
+{
+    CAMERA = 0,
+    RAY = 1,
+    IMU = 2,
+    MAGNETOMETER = 3,
+    GPS = 4,
+    FORCE = 5,
+    CONTACT = 6,
+    SONAR = 7,
+    RFIDTAG = 8,
+    RFID = 9,
+    UNSUPPORTED = -1,
+
+};
+
 struct UrdfDynamics
 {
     float damping = 0.0f;
@@ -115,6 +131,8 @@ struct UrdfDynamics
 struct UrdfJointDrive
 {
     float target = 0.0;
+    float strength = 0.0f;
+    float damping = 0.0f;
     UrdfJointTargetType targetType = UrdfJointTargetType::POSITION;
     UrdfJointDriveType driveType = UrdfJointDriveType::FORCE;
 };
@@ -184,6 +202,97 @@ struct UrdfCollision
     UrdfGeometry geometry;
 };
 
+struct UrdfNoise
+{
+    float mean;
+    float stddev;
+    float biasMean;
+    float biasStddev;
+    float precision;
+};
+
+struct UrdfSensor
+{
+    std::string name;
+    Transform origin;
+    UrdfSensorType type;
+    std::string id;
+    float updateRate;
+};
+
+
+struct UrdfCamera : public UrdfSensor
+{
+    float width;
+    float height;
+    std::string format;
+    float hfov;
+    float clipNear;
+    float clipFar;
+};
+
+struct UrdfRayDim
+{
+    int samples;
+    float resolution;
+    float minAngle;
+    float maxAngle;
+};
+
+struct UrdfRay : public UrdfSensor
+{
+    bool hasHorizontal = false;
+    bool hasVertical = false;
+    UrdfRayDim horizontal;
+    UrdfRayDim vertical;
+    std::string isaacSimConfig;
+    // float min;
+    // float max;
+    // float resolution;
+};
+
+struct UrdfImu : public UrdfSensor
+{
+    UrdfNoise gyroNoise;
+    UrdfNoise accelerationNoise;
+};
+
+struct UrdfMagnetometer : public UrdfSensor
+{
+    UrdfNoise noise;
+};
+
+struct UrdfGps : public UrdfSensor
+{
+    UrdfNoise positionNoise;
+    UrdfNoise velocityNoise;
+};
+
+struct UrdfForce : public UrdfSensor
+{
+    std::string frame; // the child element to measure force
+    int measureDirection; // 0 is parent_to_child, 1 is child_to_parent
+};
+
+struct UrdfContact : public UrdfSensor
+{
+    std::vector<UrdfCollision> collision;
+};
+
+struct UrdfSonar : public UrdfSensor
+{
+    float min;
+    float max;
+    float radius;
+};
+
+struct UrdfRfidTag : public UrdfSensor
+{
+};
+
+struct UrdfRfid : public UrdfSensor
+{
+};
 struct UrdfLink
 {
     std::string name;
@@ -191,6 +300,17 @@ struct UrdfLink
     std::vector<UrdfVisual> visuals;
     std::vector<UrdfCollision> collisions;
     std::map<std::string, Transform> mergedChildren;
+    std::vector<UrdfCamera> cameras;
+    std::vector<UrdfRay> lidars;
+
+    // std::vector<UrdfMagnetometer> magnetometers;
+    // std::vector<UrdfImu> Imus;
+    // std::vector<UrdfGps> Gps;
+    // std::vector<UrdfForce> forceSensors;
+    // std::vector<UrdfContact> contactSensors;
+    // std::vector<UrdfSonar> sonars;
+    // std::vector<UrdfRfid> rfids;
+    // std::vector<UrdfRfidTag> rfdidTags;
 };
 
 struct UrdfJoint
@@ -219,6 +339,7 @@ struct UrdfJoint
 struct UrdfRobot
 {
     std::string name;
+    std::string rootLink;
     std::map<std::string, UrdfLink> links;
     std::map<std::string, UrdfJoint> joints;
     std::map<std::string, UrdfMaterial> materials;

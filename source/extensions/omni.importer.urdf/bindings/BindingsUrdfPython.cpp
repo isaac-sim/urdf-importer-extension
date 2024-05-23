@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "../plugins/Urdf.h"
+#include "../plugins/math/core/maths.h"
+
 #include <carb/BindingsPythonUtils.h>
 
-#include "../plugins/math/core/maths.h"
-#include "../plugins/Urdf.h"
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
@@ -54,12 +55,13 @@ void declare_map(py::module& m, const std::string typestr)
                      throw py::key_error("key '" + key + "' does not exist");
                  }
              })
-        .def("__iter__",
-             [](std::map<std::string, T>& items) { return py::make_key_iterator(items.begin(), items.end()); },
-             py::keep_alive<0, 1>())
+        .def(
+            "__iter__", [](std::map<std::string, T>& items) { return py::make_key_iterator(items.begin(), items.end()); },
+            py::keep_alive<0, 1>())
 
-        .def("items", [](std::map<std::string, T>& items) { return py::make_iterator(items.begin(), items.end()); },
-             py::keep_alive<0, 1>())
+        .def(
+            "items", [](std::map<std::string, T>& items) { return py::make_iterator(items.begin(), items.end()); },
+            py::keep_alive<0, 1>())
         .def("__len__", [](std::map<std::string, T>& items) { return items.size(); });
 }
 
@@ -110,9 +112,10 @@ PYBIND11_MODULE(_urdf, m)
         .def_readwrite(
             "subdivision_scheme", &ImportConfig::subdivisionScheme, "Subdivision scheme to be used for mesh normals")
         .def_readwrite(
-            "default_drive_strength", &ImportConfig::defaultDriveStrength, "default drive stiffness used for joints")
+            "default_drive_strength", &ImportConfig::defaultDriveStrength,
+            "default drive stiffness used for joints if drive type is position or velocity and none is authored")
         .def_readwrite("default_position_drive_damping", &ImportConfig::defaultPositionDriveDamping,
-                       "default drive damping used if drive type is set to position")
+                       "default drive damping used if drive type is set to position and no damping is authored")
         .def_readwrite("distance_scale", &ImportConfig::distanceScale,
                        "Set the unit scaling factor, 1.0 means meters, 100.0 means cm")
         .def_readwrite("up_vector", &ImportConfig::upVector, "Up vector used for import")
@@ -127,9 +130,13 @@ PYBIND11_MODULE(_urdf, m)
                        "Generate convex collision from the visual meshes.")
         .def_readwrite("replace_cylinders_with_capsules", &ImportConfig::replaceCylindersWithCapsules,
                        "Replace all cylinder bodies in the URDF with capsules.")
+        .def_readwrite("parse_mimic", &ImportConfig::parseMimic, "Parse Mimic Joint flag using PhysX Tendons")
+        .def_readwrite(
+            "override_joint_dynamics", &ImportConfig::overrideJointDynamics, "Use default values for all joints")
         // setters for each property
         .def("set_merge_fixed_joints", [](ImportConfig& config, const bool value) { config.mergeFixedJoints = value; })
-        .def("set_replace_cylinders_with_capsules", [](ImportConfig& config, const bool value) { config.replaceCylindersWithCapsules = value; })
+        .def("set_replace_cylinders_with_capsules",
+             [](ImportConfig& config, const bool value) { config.replaceCylindersWithCapsules = value; })
         .def("set_convex_decomp", [](ImportConfig& config, const bool value) { config.convexDecomp = value; })
         .def("set_import_inertia_tensor",
              [](ImportConfig& config, const bool value) { config.importInertiaTensor = value; })
@@ -157,7 +164,10 @@ PYBIND11_MODULE(_urdf, m)
         .def("set_instanceable_usd_path",
              [](ImportConfig& config, const std::string value) { config.instanceableMeshUsdPath = value; })
         .def("set_collision_from_visuals",
-             [](ImportConfig& config, const bool value) { config.collisionFromVisuals = value; });
+             [](ImportConfig& config, const bool value) { config.collisionFromVisuals = value; })
+        .def("set_parse_mimic", [](ImportConfig& config, const bool value) { config.parseMimic = value; })
+        .def("set_override_joint_dynamics",
+             [](ImportConfig& config, const bool value) { config.overrideJointDynamics = value; });
 
     py::class_<Vec3>(m, "Position", "")
         .def_readwrite("x", &Vec3::x, "")
@@ -302,11 +312,45 @@ PYBIND11_MODULE(_urdf, m)
         .def_readwrite("geometry", &UrdfCollision::geometry, "")
         .def(py::init<>());
 
+    py::class_<UrdfCamera>(m, "UrdfCamera", "")
+        .def_readwrite("name", &UrdfCamera::name, "")
+        .def_readwrite("origin", &UrdfCamera::origin, "")
+        .def_readwrite("update_rate", &UrdfCamera::updateRate, "")
+        .def_readwrite("width", &UrdfCamera::width, "")
+        .def_readwrite("height", &UrdfCamera::height, "")
+        .def_readwrite("format", &UrdfCamera::format, "")
+        .def_readwrite("h_fov", &UrdfCamera::hfov, "")
+        .def_readwrite("clip_near", &UrdfCamera::clipNear, "")
+        .def_readwrite("clip_far", &UrdfCamera::clipFar, "")
+        .def(py::init<>());
+
+    py::class_<UrdfRayDim>(m, "UrdfRayDim", "")
+        .def_readwrite("samples", &UrdfRayDim::samples)
+        .def_readwrite("resolution", &UrdfRayDim::resolution)
+        .def_readwrite("min_angle", &UrdfRayDim::minAngle)
+        .def_readwrite("max_angle", &UrdfRayDim::maxAngle)
+        .def(py::init<>());
+
+    py::class_<UrdfRay>(m, "UrdfRay", "")
+        .def_readwrite("name", &UrdfRay::name, "")
+        .def_readwrite("origin", &UrdfRay::origin, "")
+        .def_readwrite("update_rate", &UrdfRay::updateRate, "")
+        .def_readwrite("has_horizontal", &UrdfRay::hasHorizontal)
+        .def_readwrite("has_vertical", &UrdfRay::hasVertical)
+        .def_readwrite("horizontal", &UrdfRay::horizontal)
+        .def_readwrite("vertical", &UrdfRay::vertical)
+        // .def_readwrite("min", &UrdfRay::min)
+        // .def_readwrite("max", &UrdfRay::max)
+        // .def_readwrite("resolution", &UrdfRay::resolution)
+        .def(py::init<>());
+
     py::class_<UrdfLink>(m, "UrdfLink", "")
         .def_readwrite("name", &UrdfLink::name, "")
         .def_readwrite("inertial", &UrdfLink::inertial, "")
         .def_readwrite("visuals", &UrdfLink::visuals, "")
         .def_readwrite("collisions", &UrdfLink::collisions, "")
+        .def_readwrite("cameras", &UrdfLink::cameras, "")
+        .def_readwrite("lidars", &UrdfLink::lidars, "")
         .def(py::init<>());
 
     py::class_<UrdfJoint>(m, "UrdfJoint", "")
@@ -323,6 +367,7 @@ PYBIND11_MODULE(_urdf, m)
 
     py::class_<UrdfRobot>(m, "UrdfRobot", "")
         .def_readwrite("name", &UrdfRobot::name, "")
+        .def_readwrite("root_link", &UrdfRobot::rootLink, "")
         .def_readwrite("links", &UrdfRobot::links, "")
         .def_readwrite("joints", &UrdfRobot::joints, "")
         .def_readwrite("materials", &UrdfRobot::materials, "")
@@ -334,6 +379,19 @@ PYBIND11_MODULE(_urdf, m)
 
 
     defineInterfaceClass<Urdf>(m, "Urdf", "acquire_urdf_interface", "release_urdf_interface")
+        .def("parse_string_urdf", wrapInterfaceFunction(&Urdf::parseUrdfString),
+             R"pbdoc(
+                Parse URDF file into the internal data structure, which is displayed in the importer window for inspection.
+
+                Args:
+                    arg0 (:obj:`str`): The urdf in text format
+
+                    arg2 (:obj:`omni.importer.urdf._urdf.ImportConfig`): Import configuration parameters
+
+                Returns:
+                    :obj:`omni.importer.urdf._urdf.UrdfRobot`: Parsed URDF stored in an internal structure.
+
+                )pbdoc")
         .def("parse_urdf", wrapInterfaceFunction(&Urdf::parseUrdf),
              R"pbdoc(
                 Parse URDF file into the internal data structure, which is displayed in the importer window for inspection.
@@ -352,6 +410,7 @@ PYBIND11_MODULE(_urdf, m)
 
         .def("import_robot", wrapInterfaceFunction(&Urdf::importRobot), py::arg("assetRoot"), py::arg("assetName"),
              py::arg("robot"), py::arg("importConfig"), py::arg("stage") = std::string(""),
+             py::arg("getArticulationRoot") = false,
              R"pbdoc(
                 Importing the robot, from the already parsed URDF file.
 

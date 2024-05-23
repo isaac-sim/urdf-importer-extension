@@ -1,9 +1,101 @@
 # Changelog
+## [1.14.1] - 2024-05-23
+
+### Fixed
+- Error Message on creating symlink for Windows.
+
+## [1.14.0] - 2024-05-11
+
+### Fixed
+- Add Articulation Root to Fixed Joint when fixed base.
+
+## [1.13.1] - 2024-04-29
+
+### Fixed
+- Mimic Joints using Mimic Joint API
+- Scroll bar in Isaac Sim for UI
+
+
+## [1.13.0] - 2024-04-04
+
+### Fixed
+- Example window UI buttons callbacks
+
+## [1.12.0] - 2024-04-03
+
+### Added
+- Parse Camera and Lidar Sensor
+- Add code stub for other sensor types currently not in official URDF definition.
+
+## [1.11.0] - 2024-03-26
+
+### Fixed
+- Support for GLTF meshes
+
+## [1.10.1] - 2024-03-20
+
+### Fixed
+- Ensuring UI frames are always properly aligned
+
+## [1.10.0] - 2024-02-29
+
+### Added
+- UI Hooks to Expand URDF Import
+- Parse URDF in memory as string
+### Fixed
+- Compute extent for cylinders axis
+
+## [1.9.0] - 2024-02-26
+
+### Added
+- Split URDF Parsing and Importing
+- Add utility to select joint drive types prior to import
+
+## [1.8.0] - 2024-02-23
+### Fixed
+- Joint Axis is maintained when importing if it's aligned with X, Y or Z parent body axis
+
+## [1.7.0] - 2024-02-11
+
+### Fixed
+- Fixed importer to ensure rigid body principal axes are taken into account when computing inertia tensor.
+- Fixed importing of dynamics damping and friction (when authored).
+- Modified handling of massless root links so that they're given zero mass, which results in PhysX autocomputing the minimum mass required for articulation stability,
+
+## [1.6.1] - 2023-12-14
+
+### Fixed
+- output USD was accumulating disk size every time it was overwritten
+- Instanceable importing was causing the importer to segfault when overwriting.
+
+## [1.6.0] - 2023-12-11
+
+### Fixed
+- Changed the AddRobot (and all related bindings and commands) to allow getting the articulation Root prim path directly instead of the base prim, defaulting to getting the base prim.
+
+## [1.5.0] - 2023-12-04
+
+### Fixed
+- Fixed setting of articulation root on the actual link prim instead of the default prim. This
+  is needed to deal with letting PhysX parser decide what is the root prim for floating-base systems.
+
+## [1.4.1] - 2023-11-30
+
+### Fixed
+- Handling meshes that inadvertertly duplicate the UV maps
+## [1.4.0] - 2023-11-30
+
+### Changed
+- Prompt users to confirm import path and confirm overwrite before proceeding with importing.
 
 ## [1.3.0] - 2023-11-29
 
 ### Added
 - Handling massless and inertialess links by adding small mass and inertia values
+## [1.2.0] - 2023-11-28
+
+### Added
+- Flag to decide whether or not to parse mimic joints
 
 ## [1.1.4] - 2023-10-18
 

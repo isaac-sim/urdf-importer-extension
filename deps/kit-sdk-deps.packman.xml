@@ -2,11 +2,11 @@
   <!-- Import dependencies from Kit SDK to ensure we're using the same versions. -->
   <import path="../_build/${platform}/${config}/kit/dev/all-deps.packman.xml">
     <filter include="carb_sdk_plugins"/>
-    <filter include="doctest"/>
     <filter include="pybind11"/>
     <filter include="python"/>
     <filter include="client_library" />
     <filter include="omni_usd_resolver" />
+    <filter include="nv_usd_py310_${config}" />
   </import>
 
   <!-- Import Physics plugins deps -->
@@ -14,12 +14,15 @@
     <filter include="pxshared" />
     <filter include="physx" />
     <filter include="vhacd" />
+  </import>
+
+  <import path="../_build/target-deps/omni_physics/deps/schema-deps.packman.xml">
     <filter include="usd_ext_physics_${config}" />
   </import>
 
   <!-- Override the link paths to point to the correct locations. -->
   <dependency name="carb_sdk_plugins" linkPath="../_build/target-deps/carb_sdk_plugins"/>
-  <dependency name="doctest" linkPath="../_build/target-deps/doctest"/>
+  <dependency name="nv_usd_py310_${config}" linkPath="../_build/target-deps/nv_usd/${config}" />
   <dependency name="pybind11" linkPath="../_build/target-deps/pybind11"/>
   <dependency name="python" linkPath="../_build/target-deps/python"/>
   <dependency name="client_library" linkPath="../_build/target-deps/client_library" />
@@ -29,4 +32,8 @@
   <dependency name="physx" linkPath="../_build/target-deps/physx" />
   <dependency name="vhacd" linkPath="../_build/target-deps/vhacd" />
   <dependency name="usd_ext_physics_${config}" linkPath="../_build/target-deps/usd_ext_physics/${config}" />
+
+  <import path="../_build/${platform}/${config}/kit/dev/deps/linbuild.packman.xml">
+    <filter include="linbuild" linkPath="../_build/host-deps/linbuild" tags="non-redist" />
+  </import>
 </project>

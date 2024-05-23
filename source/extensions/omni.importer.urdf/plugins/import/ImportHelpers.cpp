@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -123,7 +123,7 @@ void mergeFixedChildLinks(const KinematicChain::Node& parentNode, UrdfRobot& rob
             auto& urdfChildLink = robot.links.at(childNode->linkName_);
             // The pose of the child with respect to the parent is defined at the joint connecting them
             Transform poseChildToParent = robot.joints.at(childNode->parentJointName_).origin;
-            //Add a reference to the merged link
+            // Add a reference to the merged link
             urdfParentLink.mergedChildren[childNode->linkName_] = poseChildToParent;
             // At least one of the link masses has to be defined
             if ((urdfParentLink.inertial.hasMass || urdfChildLink.inertial.hasMass) &&
@@ -239,7 +239,7 @@ std::string resolveXrefPath(const std::string& assetRoot, const std::string& urd
     std::size_t p = xrefPath.find("://");
     if (p != std::string::npos)
     {
-        xrefPath = xrefPath.substr(p + 3);  // +3 to remove "://"
+        xrefPath = xrefPath.substr(p + 3); // +3 to remove "://"
     }
 
     if (isAbsolutePath(xrefPath.c_str()))

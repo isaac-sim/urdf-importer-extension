@@ -1,12 +1,15 @@
 ﻿# All folders starting with _ are local.
 _*/
-
+.cache
+.local
 # Compiled python files.
 *.py[cod]
 
 # Visual Studio files.
 /.vs
 **/.vscode/ipch
+.lastformat
+.lastverify
 
 # macOS files.
 .DS_Store

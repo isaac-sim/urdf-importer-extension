@@ -17,6 +17,7 @@ import asyncio
 import gc
 import os
 import weakref
+from functools import partial
 
 import carb
 import omni.client
@@ -33,6 +34,7 @@ from omni.importer.urdf.scripts.ui import (
     setup_ui_headers,
     str_builder,
 )
+from omni.importer.urdf.scripts.ui.UrdfJointWidget import UrdfJointWidget
 from omni.kit.menu.utils import MenuItemDescription, add_menu_items, remove_menu_items
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -69,8 +71,46 @@ def on_filter_folder(item) -> bool:
         return False
 
 
+async def dir_exists(path: str, timeout: float = 10.0) -> bool:
+
+    result, stat = await asyncio.wait_for(omni.client.stat_async(path), timeout)
+    return result != omni.client._omniclient.Result.ERROR_NOT_FOUND
+
+
+def Singleton(class_):
+    """A singleton decorator"""
+    instances = {}
+
+    def getinstance(*args, **kwargs):
+        if class_ not in instances:
+            instances[class_] = class_(*args, **kwargs)
+        return instances[class_]
+
+    return getinstance
+
+
 class Extension(omni.ext.IExt):
     def on_startup(self, ext_id):
+        self._ext_id = ext_id
+
+        self.window = UrdfImporter(ext_id)
+        menu_items = [
+            make_menu_item_description(ext_id, EXTENSION_NAME, lambda a=weakref.proxy(self): a._menu_callback())
+        ]
+        self._menu_items = [MenuItemDescription(name="Workflows", sub_menu=menu_items)]
+        add_menu_items(self._menu_items, "Isaac Utils")
+
+    def _menu_callback(self):
+        self.window._window.visible = not self.window._window.visible
+
+    def on_shutdown(self):
+        self.window.on_shutdown()
+        remove_menu_items(self._menu_items, "Isaac Utils")
+
+
+@Singleton
+class UrdfImporter(object):
+    def __init__(self, ext_id=None):
         self._ext_id = ext_id
         self._urdf_interface = _urdf.acquire_urdf_interface()
         self._usd_context = omni.usd.get_context()
@@ -78,12 +118,6 @@ class Extension(omni.ext.IExt):
             EXTENSION_NAME, width=400, height=500, visible=False, dockPreference=ui.DockPreference.LEFT_BOTTOM
         )
         self._window.set_visibility_changed_fn(self._on_window)
-
-        menu_items = [
-            make_menu_item_description(ext_id, EXTENSION_NAME, lambda a=weakref.proxy(self): a._menu_callback())
-        ]
-        self._menu_items = [MenuItemDescription(name="Workflows", sub_menu=menu_items)]
-        add_menu_items(self._menu_items, "Isaac Utils")
         self._file_picker = None
 
         self._models = {}
@@ -93,6 +127,7 @@ class Extension(omni.ext.IExt):
         self._content_browser = None
         self._extension_path = omni.kit.app.get_app().get_extension_manager().get_extension_path(ext_id)
         self._imported_robot = None
+        self._robot_model = None
 
         # Set defaults
         self._config.set_merge_fixed_joints(False)
@@ -108,18 +143,75 @@ class Extension(omni.ext.IExt):
         self._config.set_self_collision(False)
         self._config.set_up_vector(0, 0, 1)
         self._config.set_make_default_prim(True)
+        self._config.set_parse_mimic(True)
         self._config.set_create_physics_scene(True)
         self._config.set_collision_from_visuals(False)
 
+        # Additional UI that can be incorporated in the URDF Importer for Extended Workflow
+        self.extra_frames = {}
+        self.extra_frames_dict = {}
+
+        self.build_ui()
+
+    def add_ui_frame(self, frame_location, frame_id):
+        self.extra_frames_dict[frame_id] = (ui.Frame(style=get_style()), frame_location)
+        if self.extra_frames[frame_location]:
+            self.extra_frames[frame_location].add_child(self.extra_frames_dict[frame_id][0])
+
+        return self.extra_frames_dict[frame_id][0]
+
+    def remove_ui_frame(self, frame_id):
+        if frame_id in self.extra_frames_dict:
+            frame, frame_location = self.extra_frames_dict[frame_id]
+            frame.visible = False
+        self.extra_frames_dict.pop(frame_id)
+
+    def get_frame_locations(self):
+        return self.extra_frames.keys()
+
+    def check_file_type(self, model=None):
+        path = model.get_value_as_string()
+        if is_urdf_file(path) and "omniverse:" not in path.lower():
+            self._models["refresh_btn"].enabled = True
+            result, self._robot_model = omni.kit.commands.execute(
+                "URDFParseFile", urdf_path=path, import_config=self._config
+            )
+            if result:
+                self._on_urdf_loaded()
+        else:
+            carb.log_warn(f"Invalid path to URDF: {path}")
+
+    @property
+    def config(self):
+        return self._config
+
+    @config.setter
+    def config(self, value):
+        self._config = value
+
+    def update_robot_model(self, robot_model=None):
+        if robot_model:
+            self._robot_model = robot_model
+        self._on_urdf_loaded()
+
     def build_ui(self):
         with self._window.frame:
+            self._scrolling_frame = ui.ScrollingFrame(vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED)
+        with self._scrolling_frame:
             with ui.VStack(spacing=5, height=0):
 
                 self._build_info_ui()
 
                 self._build_options_ui()
 
+                self._build_source_ui()
+
                 self._build_import_ui()
+
+                self.extra_frames["extra"] = ui.VStack()
+                for frame in self.extra_frames_dict:
+                    print(frame)
+                    self.extra_frames["extra"].add_child(self.extra_frames_dict[frame])
 
         stage = self._usd_context.get_stage()
         if stage:
@@ -154,6 +246,69 @@ class Extension(omni.ext.IExt):
         overview += "\n\nPress the 'Open in IDE' button to view the source code."
 
         setup_ui_headers(self._ext_id, __file__, title, doc_link, overview)
+
+    def _on_urdf_loaded(self):
+        self._models["import_btn"].enabled = True
+        self.robot_frame.visible = True
+        with self.robot_frame:
+            with ui.VStack():
+                joint_frame = ui.CollapsableFrame(
+                    title="Joints",
+                    collapsed=True,
+                    height=0,
+                    style=get_style(),
+                    style_type_name_override="CollapsableFrame",
+                    horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+                    vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+                )
+                ui.Spacer(height=5)
+                with joint_frame:
+                    with ui.VStack(height=0):
+                        UrdfJointWidget(self._robot_model.joints.values(), self._on_joint_changed)
+
+    def _on_joint_changed(self, joint):
+        self._robot_model.joints[joint.name] = joint
+        self._robot_model.joints[joint.name].drive = joint.drive
+
+    def _build_source_ui(self):
+        frame = ui.CollapsableFrame(
+            title="Input",
+            height=0,
+            collapsed=False,
+            style=get_style(),
+            style_type_name_override="CollapsableFrame",
+            horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
+        with frame:
+            kwargs = {
+                "label": "Input File",
+                "default_val": "",
+                "tooltip": "Click the Folder Icon to Set Filepath",
+                "use_folder_picker": True,
+                "item_filter_fn": on_filter_item,
+                "bookmark_label": "Built In URDF Files",
+                "bookmark_path": f"{self._extension_path}/data/urdf",
+                "folder_dialog_title": "Select URDF File",
+                "folder_button_title": "Select URDF",
+            }
+            with ui.VStack():
+                self.extra_frames["input"] = ui.VStack(style=get_style())
+                self._file_input_frame = ui.Frame(style=get_style())
+                with self._file_input_frame:
+                    with ui.HStack():
+                        self._models["input_file"] = str_builder(**kwargs)
+                        self._models["input_file"].add_value_changed_fn(self.check_file_type)
+                        self._models["refresh_btn"] = ui.Button(
+                            "Refresh",
+                            clicked_fn=partial(self.check_file_type, self._models["input_file"]),
+                            enabled=False,
+                            width=ui.Pixel(30),
+                        )
+                self.robot_frame = ui.Frame(height=0)
+
+    def set_file_input_visible(self, value):
+        self._file_input_frame.visible = value
 
     def _build_options_ui(self):
         frame = ui.CollapsableFrame(
@@ -213,22 +368,31 @@ class Extension(omni.ext.IExt):
                     ),
                     tooltip="Default Joint drive type.",
                 )
-                self._models["drive_strength"] = float_builder(
-                    "Joint Drive Strength",
-                    default_val=1e4,
-                    tooltip="Joint stiffness for position drive, or damping for velocity driven joints. Set to -1 to prevent this parameter from getting used.",
+                self._models["override_joint_dynamics"] = cb_builder(
+                    label="Override Joint Dynamics",
+                    tooltip="Use default Joint drives for all joints, regardless of URDF authoring",
+                    on_clicked_fn=lambda m, config=self._config: config.set_override_joint_dynamics(m),
                 )
-                self._models["drive_strength"].add_value_changed_fn(
-                    lambda m, config=self._config: config.set_default_drive_strength(m.get_value_as_float())
-                )
-                self._models["position_drive_damping"] = float_builder(
-                    "Joint Position Damping",
-                    default_val=1e3,
-                    tooltip="Default damping value when drive type is set to Position. Set to -1 to prevent this parameter from getting used.",
-                )
-                self._models["position_drive_damping"].add_value_changed_fn(
-                    lambda m, config=self._config: config.set_default_position_drive_damping(m.get_value_as_float())
-                )
+                with ui.HStack():
+                    ui.Spacer(width=15)
+                    self._models["drive_strength"] = float_builder(
+                        "Joint Drive Strength",
+                        default_val=1e4,
+                        tooltip="Joint stiffness for position drive, or damping for velocity driven joints. Default values will not be used if URDF has joint dynamics damping authored unless override is checked",
+                    )
+                    self._models["drive_strength"].add_value_changed_fn(
+                        lambda m, config=self._config: config.set_default_drive_strength(m.get_value_as_float())
+                    )
+                with ui.HStack():
+                    ui.Spacer(width=15)
+                    self._models["position_drive_damping"] = float_builder(
+                        "Joint Position Damping",
+                        default_val=1e3,
+                        tooltip="Default damping value when drive type is set to Position. Default values will not be used if URDF has joint dynamics damping authored.",
+                    )
+                    self._models["position_drive_damping"].add_value_changed_fn(
+                        lambda m, config=self._config: config.set_default_position_drive_damping(m.get_value_as_float())
+                    )
                 self._models["clean_stage"] = cb_builder(
                     label="Clear Stage", tooltip="Clear the Stage prior to loading the URDF."
                 )
@@ -282,6 +446,12 @@ class Extension(omni.ext.IExt):
                 self._models["instanceable_usd_path"].add_value_changed_fn(
                     lambda m, config=self._config: config.set_instanceable_usd_path(m.get_value_as_string())
                 )
+                cb_builder(
+                    "Parse Mimic Joint tag",
+                    tooltip="If true, creates a PhysX tendon to enforce the mimic joint behavior. Otherwise, the joint is treated as a regular joint.",
+                    default_val=True,
+                    on_clicked_fn=lambda m, config=self._config: config.set_parse_mimic(m),
+                )
 
     def _build_import_ui(self):
         frame = ui.CollapsableFrame(
@@ -296,27 +466,6 @@ class Extension(omni.ext.IExt):
         with frame:
             with ui.VStack(style=get_style(), spacing=5, height=0):
 
-                def check_file_type(model=None):
-                    path = model.get_value_as_string()
-                    if is_urdf_file(path) and "omniverse:" not in path.lower():
-                        self._models["import_btn"].enabled = True
-                    else:
-                        carb.log_warn(f"Invalid path to URDF: {path}")
-
-                kwargs = {
-                    "label": "Input File",
-                    "default_val": "",
-                    "tooltip": "Click the Folder Icon to Set Filepath",
-                    "use_folder_picker": True,
-                    "item_filter_fn": on_filter_item,
-                    "bookmark_label": "Built In URDF Files",
-                    "bookmark_path": f"{self._extension_path}/data/urdf",
-                    "folder_dialog_title": "Select URDF File",
-                    "folder_button_title": "Select URDF",
-                }
-                self._models["input_file"] = str_builder(**kwargs)
-                self._models["input_file"].add_value_changed_fn(check_file_type)
-
                 kwargs = {
                     "label": "Output Directory",
                     "type": "stringfield",
@@ -328,8 +477,104 @@ class Extension(omni.ext.IExt):
 
                 # btn_builder("Import URDF", text="Select and Import", on_clicked_fn=self._parse_urdf)
 
-                self._models["import_btn"] = btn_builder("Import", text="Import", on_clicked_fn=self._load_robot)
+                self._models["import_btn"] = btn_builder("Import", text="Import", on_clicked_fn=self.start_import)
                 self._models["import_btn"].enabled = False
+
+    def start_import(self, checked=False):
+        basename = self._robot_model.name
+        base_path = ""
+        dest_path = self.dest_model.get_value_as_string()
+        path = self._models["input_file"].get_value_as_string()
+        if path:
+            dest_path = self.dest_model.get_value_as_string()
+            base_path = path[: path.rfind("/")]
+            basename = path[path.rfind("/") + 1 :]
+            basename = basename[: basename.rfind(".")]
+            if path.rfind("/") < 0:
+                base_path = path[: path.rfind("\\")]
+                basename = path[path.rfind("\\") + 1]
+
+        if dest_path == "(same as source)" and base_path == "":
+            no_path_window = ui.Window(
+                "URDF Needs a destination Path",
+                width=400,
+                height=120,
+                flags=ui.WINDOW_FLAGS_NO_SCROLLBAR
+                | ui.WINDOW_FLAGS_MODAL
+                | ui.WINDOW_FLAGS_NO_MOVE
+                | ui.WINDOW_FLAGS_NO_RESIZE
+                | ui.WINDOW_FLAGS_NO_CLOSE
+                | ui.WINDOW_FLAGS_NO_COLLAPSE,
+            )
+            no_path_window.visible = True
+            with no_path_window.frame:
+                with ui.VStack():
+                    ui.Label("No file source detected. Destination Path is required.")
+
+                    def close_window():
+                        no_path_window.visible = False
+
+                    ui.Button("OK", clicked_fn=partial(close_window))
+                return
+
+        if not checked and dest_path == "(same as source)":
+            dest_path = f"{base_path}/{basename}"
+            label_txt = f"The model {basename}.usd and all additional import files will be saved at"
+            label = ui.Label(label_txt)
+            check_path_window = ui.Window(
+                "URDF Confirm Path",
+                width=max(len(label_txt), len(dest_path)) * 6,
+                height=120,
+                flags=ui.WINDOW_FLAGS_NO_SCROLLBAR | ui.WINDOW_FLAGS_MODAL,
+            )
+
+            def check_callback(do_continue, *args):
+                if do_continue:
+                    self.start_import(True)
+                check_path_window.visible = False
+
+            with check_path_window.frame:
+                with ui.VStack():
+                    ui.Label(label_txt, alignment=ui.Alignment.CENTER)
+                    ui.Label(f"{dest_path}", alignment=ui.Alignment.CENTER)
+                    ui.Label(f"Would You Like to continue?", alignment=ui.Alignment.CENTER)
+                    with ui.HStack():
+                        ui.Button("Yes", clicked_fn=partial(check_callback, True))
+                        ui.Button("No", clicked_fn=partial(check_callback, False))
+            return
+        else:
+
+            if dest_path != "(same as source)":
+                base_path = dest_path
+            dest_path = f"{base_path}/{basename}/{basename}.usd"
+            loop = asyncio.new_event_loop()
+            if loop.run_until_complete(dir_exists(dest_path)):
+                overwrite_window = ui.Window(
+                    "URDF Confirm Overwrite",
+                    width=300,
+                    height=90,
+                    flags=ui.WINDOW_FLAGS_NO_SCROLLBAR
+                    | ui.WINDOW_FLAGS_NO_RESIZE
+                    | ui.WINDOW_FLAGS_NO_MOVE
+                    | ui.WINDOW_FLAGS_MODAL,
+                )
+
+                def overwrite_callback(do_continue, *args):
+                    if do_continue:
+                        self._load_robot()
+                    overwrite_window.visible = False
+
+                with overwrite_window.frame:
+                    with ui.VStack():
+                        ui.Label(f"The model already exists in the provided folder.", alignment=ui.Alignment.CENTER)
+                        ui.Label(f"Overwrite?", alignment=ui.Alignment.CENTER)
+                        with ui.HStack():
+                            ui.Button("Yes", clicked_fn=partial(overwrite_callback, True))
+                            ui.Button("No", clicked_fn=partial(overwrite_callback, False))
+                loop.close()
+                return
+            loop.close()
+            self._load_robot()
 
     def get_dest_folder(self):
         stage = omni.usd.get_context().get_stage()
@@ -342,12 +587,9 @@ class Extension(omni.ext.IExt):
                 return basepath
         return "(same as source)"
 
-    def _menu_callback(self):
-        self._window.visible = not self._window.visible
-
     def _on_window(self, visible):
         if self._window.visible:
-            self.build_ui()
+            # self.build_ui()
             self._events = self._usd_context.get_stage_event_stream()
             self._stage_event_sub = self._events.create_subscription_to_pop(
                 self._on_stage_event, name="urdf importer stage event"
@@ -369,14 +611,18 @@ class Extension(omni.ext.IExt):
 
     def _load_robot(self, path=None):
         path = self._models["input_file"].get_value_as_string()
-        if path:
+        if self._robot_model:
             dest_path = self.dest_model.get_value_as_string()
-            base_path = path[: path.rfind("/")]
-            basename = path[path.rfind("/") + 1 :]
-            basename = basename[: basename.rfind(".")]
-            if path.rfind("/") < 0:
-                base_path = path[: path.rfind("\\")]
-                basename = path[path.rfind("\\") + 1]
+            if path:
+                base_path = path[: path.rfind("/")]
+                basename = path[path.rfind("/") + 1 :]
+                basename = basename[: basename.rfind(".")]
+
+                if path.rfind("/") < 0:
+                    base_path = path[: path.rfind("\\")]
+                    basename = path[path.rfind("\\") + 1]
+            else:
+                basename = self._robot_model.name
 
             if dest_path != "(same as source)":
                 base_path = dest_path  # + "/" + basename
@@ -394,11 +640,16 @@ class Extension(omni.ext.IExt):
             # stage = Usd.Stage.CreateNew(dest_path)
             # UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
             omni.kit.commands.execute(
-                "URDFParseAndImportFile", urdf_path=path, import_config=self._config, dest_path=dest_path
+                "URDFImportRobot",
+                urdf_path=path,
+                urdf_robot=self._robot_model,
+                import_config=self._config,
+                dest_path=dest_path,
             )
             # print("Created file, instancing it now")
             stage = Usd.Stage.Open(dest_path)
             prim_name = str(stage.GetDefaultPrim().GetName())
+
             # print(prim_name)
             # stage.Save()
             def add_reference_to_stage():
@@ -430,7 +681,6 @@ class Extension(omni.ext.IExt):
 
     def on_shutdown(self):
         _urdf.release_urdf_interface(self._urdf_interface)
-        remove_menu_items(self._menu_items, "Isaac Utils")
         if self._window:
             self._window = None
         gc.collect()

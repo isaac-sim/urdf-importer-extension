@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,62 +15,11 @@
 
 #pragma once
 
-#define ENABLE_VERBOSE_OUTPUT 0
-#define ENABLE_APIC_CAPTURE 0
-#define ENABLE_PERFALYZE_CAPTURE 0
-
-#if ENABLE_VERBOSE_OUTPUT
-#    define VERBOSE(a) a##;
-#else
-#    define VERBOSE(a)
-#endif
-
-//#define Super __super
-
-// basically just a collection of macros and types
-#ifndef UNUSED
-#    define UNUSED(x) (void)x;
-#endif
-
-#define NOMINMAX
-
-#if !PLATFORM_OPENCL
-#    include <cassert>
-#endif
-
-#include "types.h"
-
-#if !PLATFORM_SPU && !PLATFORM_OPENCL
-#    include <algorithm>
-#    include <fstream>
-#    include <functional>
-#    include <iostream>
-#    include <string>
-#endif
-
-#include <string.h>
-
-
-// disable some warnings
-#if _WIN32
-#    pragma warning(disable : 4996) // secure io
-#    pragma warning(disable : 4100) // unreferenced param
-#    pragma warning(disable : 4324) // structure was padded due to __declspec(align())
-#endif
-
-// alignment helpers
-#define DEFAULT_ALIGNMENT 16
-
-#if PLATFORM_LINUX
-#    define ALIGN_N(x)
-#    define ENDALIGN_N(x) __attribute__((aligned(x)))
-#else
-#    define ALIGN_N(x) __declspec(align(x))
-#    define END_ALIGN_N(x)
-#endif
-
-#define ALIGN ALIGN_N(DEFAULT_ALIGNMENT)
-#define END_ALIGN END_ALIGN_N(DEFAULT_ALIGNMENT)
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <functional>
+#include <iostream>
 
 inline bool IsPowerOfTwo(int n)
 {
@@ -141,9 +90,9 @@ T ByteSwap(const T& val)
 #    define ToLittleEndian(x) x
 #endif
 
-//#include "platform.h"
+// #include "platform.h"
 
-//#define sizeof_array(x) (sizeof(x)/sizeof(*x))
+// #define sizeof_array(x) (sizeof(x)/sizeof(*x))
 template <typename T, size_t N>
 size_t sizeof_array(const T (&)[N])
 {
@@ -189,6 +138,10 @@ inline void MakeRelativePath(const char* filePath, const char* fileRelativePath,
     if (fileRelativePath[0] == '\\' || fileRelativePath[0] == '/')
         ++fileRelativePath;
 
-    // append mesh filename
+// append mesh filename
+#ifdef _WIN32
+    strcpy_s(fullPath + baseLength, baseLength, fileRelativePath);
+#else
     strcpy(fullPath + baseLength, fileRelativePath);
+#endif
 }
