@@ -1,4 +1,4 @@
-# Omniverse URDF Importer
+# URDF Importer
 
 The URDF Importer Extension is used to import URDF representations of robots.
 `Unified Robot Description Format (URDF)` is an XML format for representing a robot model in ROS.
