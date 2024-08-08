@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
+#
+# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
+# property and proprietary rights in and to this material, related
+# documentation and any modifications thereto. Any use, reproduction,
+# disclosure or distribution of this material and related documentation
+# without an express license agreement from NVIDIA CORPORATION or
+# its affiliates is strictly prohibited.
+
+[package]
+title = "Urdf Importer Extension"
+version = "2.3.11"  # Semantic Versionning is used: https://semver.org/
+category = "Simulation"
+description = "URDF Importer"
+repository = ""
+authors = ["NVIDIA"]
+keywords = ["urdf", "importer", "isaac"]
+changelog = "docs/CHANGELOG.md"
+readme = "docs/Overview.md"
+icon = "data/icon.png"
+writeTarget.kit = true
+preview_image = "data/preview.png"
+
+[dependencies]
+"omni.kit.commands" = {}
+"omni.kit.uiapp" = {}
+"omni.kit.tool.asset_importer" = {}
+"omni.kit.window.filepicker" = {}
+"omni.kit.window.content_browser" = {}
+"omni.kit.viewport.utility" = {}
+"omni.kit.pip_archive" = {} # pulls in pillow
+"omni.usd.schema.physx" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.window.property" = {}
+"omni.kit.helper.file_utils" = {}
+"omni.usd.libs" = {}
+"isaacsim.examples.browser" = {}
+"isaacsim.gui.components" = {}
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.tests"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.scripts.ui"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.scripts.samples.import_carter"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.scripts.samples.import_franka"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.scripts.samples.import_kaya"
+
+[[python.module]]
+name = "isaacsim.asset.importer.urdf.scripts.samples.import_ur10"
+
+[[native.plugin]]
+path = "bin/*.plugin"
+recursive = false
+
+
+[settings]
+exts."omni.kit.window.filepicker".detail_width_init = 390
+exts."omni.kit.window.filepicker".detail_width_min = 390
+exts."omni.kit.window.filepicker".detail_width_max = 600
+
+[[test]]
+dependencies = [ "omni.kit.test"]
+
+#stdoutFailPatterns.exclude = [
+#    "*extension object is still alive, something holds a reference on it*", # exclude warning as failure
+#]
+
+args = ["--/app/file/ignoreUnsavedOnExit=1"]
+
+[documentation]
+pages = [
+    "docs/Overview.md",
+    "docs/CHANGELOG.md",
+]

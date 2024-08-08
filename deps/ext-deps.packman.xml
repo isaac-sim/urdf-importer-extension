@@ -18,14 +18,13 @@
       <package name="nv-usd" version="22.11.nv.0.2.1060.196d6f2d-linux-aarch64_py310_debug-kit-release-integ-23-04-105-0-0" platforms="linux-aarch64" checksum="b3c43e940fa613bd5c3fe6de7cd898e4f6304693f8d9ed76da359f04a0de8b02" />
   </dependency>
 
+  <dependency name="omniverse_asset_converter" linkPath="../_build/target-deps/omniverse_asset_converter">
+    <package name="omniverse_asset_converter" version="3.2.1+release.1822.6d5a39f3.gl.${platform}.release" platforms="${platform}" />
+  </dependency>
+
   <dependency name="tinyxml2" linkPath="../_build/target-deps/tinyxml2">
       <package name="tinyxml2" version="linux_x64_20200823_2c5a6bf" platforms="linux-x86_64" />
       <package name="tinyxml2" version="win_x64_20200824_2c5a6bf" platforms="windows-x86_64" />
-  </dependency>
-
-  <dependency name="assimp" linkPath="../_build/target-deps/assimp">
-      <package name="assimp" version="5.0.0.50.aa41375a-windows-x86_64-release" platforms="windows-x86_64"/>
-      <package name="assimp" version="5.0.0.50.aa41375a-linux-x86_64-release" platforms="linux-x86_64"/>
   </dependency>
 
   <dependency name="rapidjson" linkPath="../_build/target-deps/rapidjson">

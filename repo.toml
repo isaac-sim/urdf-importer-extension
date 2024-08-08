@@ -63,6 +63,7 @@ post_build.commands = [
     # ["${root}/repo${shell_ext}", "stubgen", "-c", "${config}"]
 ]
 
+
 ########################################################################################################################
 # Packaging
 ########################################################################################################################
@@ -88,28 +89,47 @@ sphinx_exclude_patterns = [
     "_build",
     "tools",
     "VERSION.md",
-    "source/extensions/omni.importer.urdf/PACKAGE-LICENSES",
+    "source/extensions/isaacsim.asset.importer.urdf/PACKAGE-LICENSES",
+    "PACKAGE-LICENSES",
+    "source/extensions/isaacsim.asset.importer.urdf/docs",
+    "source/deprecated/omni.importer.urdf/docs",
+    "SECURITY.md",
+
 ]
 sphinx_conf_py_extra = """
     autodoc_mock_imports = ["omni.client", "omni.kit"]
     autodoc_member_order = 'bysource'
 """
 
+[repo_build.licensing]
+enabled = false
+
+[repo_build.docker]
+enabled = false
 
 [repo_publish_exts]
 enabled = true
-use_packman_to_upload_archive = false
 
 kit_path = "${root}/_build/$platform/$config/kit/kit${exe_ext}"
 
 publish_root = "${root}/_build/$platform/$config"
 
-# disable signing as it's not common practice for extension publishing atm
-signing.enabled = false
+# signing is required for extensions to be published for windows
+signing.enabled = true
+
+# verify before publishing
+publish_verification = true
+
+# upload archives using packman (switch to using packman by default to reduce load on nucleus registry)
+use_packman_to_upload_archive = true
+
+archive_pattern = "${root}/_build/packages/omniverse-urdf-importer@*${platform_target}.${config}.*"
 
 ext_folders = [
-  "${publish_root}/exts"
+  "${publish_root}/exts",
+  "${publish_root}/extsDeprecated"
 ]
 exts.include = [
     "omni.importer.urdf",
+    "isaacsim.asset.importer.urdf",
 ]
