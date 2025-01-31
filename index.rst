@@ -1,15 +1,10 @@
-Omniverse URDF Importer
-=======================
 
-.. mdinclude:: README.md
+.. raw:: html
 
-Extension Documentation
-~~~~~~~~~~~~~~~~~~~~~~~~
+    <meta http-equiv="Refresh" content="0; url=./docs/intro.html" />
+
 .. toctree::
-   :maxdepth: 1
-   :glob:
+    :caption: kit-app-template
+    :maxdepth: 2
 
-   source/extensions/omni.importer.urdf/docs/index
-   source/extensions/omni.importer.urdf/docs/Overview
-   source/extensions/omni.importer.urdf/docs/CHANGELOG
-   CONTRIBUTING
+    Contributing <CONTRIBUTING.md>

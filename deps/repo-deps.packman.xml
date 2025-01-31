@@ -1,39 +1,35 @@
 <project toolsVersion="5.0">
   <dependency name="repo_build" linkPath="../_repo/deps/repo_build">
-    <package name="repo_build" version="0.62.7" />
-  </dependency>
-  <dependency name="repo_changelog" linkPath="../_repo/deps/repo_changelog">
-   <package name="repo_changelog" version="0.8.4" />
+    <package name="repo_build" version="0.63.1" />
   </dependency>
   <dependency name="repo_docs" linkPath="../_repo/deps/repo_docs">
-    <package name="repo_docs" version="0.50.3" />
+    <package name="repo_docs" version="0.39.2" />
   </dependency>
   <dependency name="repo_kit_tools" linkPath="../_repo/deps/repo_kit_tools">
-    <package name="repo_kit_tools" version="0.15.3" />
-  </dependency>
-  <dependency name="repo_licensing" linkPath="../_repo/deps/repo_licensing" tags="non-redist">
-    <package name="repo_licensing" version="1.15.11" />
+    <package name="repo_kit_tools" version="0.20.6" />
   </dependency>
   <dependency name="repo_man" linkPath="../_repo/deps/repo_man">
-    <package name="repo_man" version="1.57.12" />
+    <package name="repo_man" version="1.70.2" />
   </dependency>
   <dependency name="repo_package" linkPath="../_repo/deps/repo_package">
-    <package name="repo_package" version="5.9.8" />
+    <package name="repo_package" version="5.12.3" />
   </dependency>
   <dependency name="repo_format" linkPath="../_repo/deps/repo_format">
-    <package name="repo_format" version="2.12.6" />
+    <package name="repo_format" version="2.13.0" />
   </dependency>
   <dependency name="repo_source" linkPath="../_repo/deps/repo_source">
-    <package name="repo_source" version="0.5.3" />
+    <package name="repo_source" version="0.6.0" />
   </dependency>
   <dependency name="repo_test" linkPath="../_repo/deps/repo_test">
-    <package name="repo_test" version="2.31.2" />
+    <package name="repo_test" version="2.37.0" />
   </dependency>
   <dependency name="repo_ci" linkPath="../_repo/deps/repo_ci">
-    <package name="repo_ci" version="0.6.1" />
+    <package name="repo_ci" version="0.8.5" />
+  </dependency>
+  <dependency name="repo_usd" linkPath="../_repo/deps/repo_usd">
+    <package name="repo_usd" version="5.0.4" />
   </dependency>
   <dependency name="repo_symstore" linkPath="../_repo/deps/repo_symstore">
-    <package name="repo_symstore" version="1.0.28" />
+    <package name="repo_symstore" version="1.0.21" />
   </dependency>
-
 </project>

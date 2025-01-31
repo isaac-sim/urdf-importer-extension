@@ -1,39 +1,34 @@
 <project toolsVersion="5.0">
   <!-- Import dependencies from Kit SDK to ensure we're using the same versions. -->
   <import path="../_build/${platform}/${config}/kit/dev/all-deps.packman.xml">
-    <filter include="carb_sdk_plugins"/>
     <filter include="pybind11"/>
     <filter include="python"/>
-    <filter include="client_library" />
+    <filter include="usd-${config}" />
     <filter include="omni_usd_resolver" />
     <filter include="nv_usd_py310_${config}" />
   </import>
 
-  <!-- Import Physics plugins deps -->
-  <import path="../_build/target-deps/omni_physics/deps/target-deps.packman.xml">
-    <filter include="pxshared" />
-    <filter include="physx" />
-    <filter include="vhacd" />
-  </import>
 
-  <import path="../_build/target-deps/omni_physics/deps/schema-deps.packman.xml">
-    <filter include="usd_ext_physics_${config}" />
-  </import>
+
 
   <!-- Override the link paths to point to the correct locations. -->
-  <dependency name="carb_sdk_plugins" linkPath="../_build/target-deps/carb_sdk_plugins"/>
+  <dependency name="carb_sdk_plugins" linkPath="../_build/target-deps/carb_sdk_plugins">
+      <package name="carb_sdk+plugins.${platform}" version="180.6+release.7436.c5558fdf.gl" platforms="${platform}" />
+  </dependency>
+  <dependency name="usd-${config}" linkPath="../_build/target-deps/nv_usd/${config}" />
   <dependency name="nv_usd_py310_${config}" linkPath="../_build/target-deps/nv_usd/${config}" />
   <dependency name="pybind11" linkPath="../_build/target-deps/pybind11"/>
   <dependency name="python" linkPath="../_build/target-deps/python"/>
-  <dependency name="client_library" linkPath="../_build/target-deps/client_library" />
+  <dependency name="omni_client_library" linkPath="../_build/target-deps/omni_client_library">
+  <package name="omni_client_library.${platform}" version="2.53.0" platforms="${platform}" />
+  </dependency>
   <dependency name="omni_usd_resolver" linkPath="../_build/target-deps/omni_usd_resolver" />
+  <dependency name="usd_schema_semantics_${config}" linkPath="../_build/target-deps/usd_schema_semantics/${config}" />
 
-  <dependency name="pxshared" linkPath="../_build/target-deps/pxshared"/>
-  <dependency name="physx" linkPath="../_build/target-deps/physx" />
   <dependency name="vhacd" linkPath="../_build/target-deps/vhacd" />
-  <dependency name="usd_ext_physics_${config}" linkPath="../_build/target-deps/usd_ext_physics/${config}" />
 
-  <import path="../_build/${platform}/${config}/kit/dev/deps/linbuild.packman.xml">
+  <!-- <import path="../_build/${platform}/${config}/kit/dev/deps/linbuild.packman.xml">
     <filter include="linbuild" linkPath="../_build/host-deps/linbuild" tags="non-redist" />
   </import>
+   -->
 </project>
