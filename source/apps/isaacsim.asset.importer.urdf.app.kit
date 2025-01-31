@@ -1,0 +1,48 @@
+[package]
+title = "URDF Importer Application"
+version = "2.1.0"
+description = """A foundation for a base editor application."""
+keywords = ["app"]  # That makes it browsable in UI with "app" filter
+
+
+[dependencies]
+"omni.app.dev" = {}
+"omni.usd.schema.physx" = {}
+"isaacsim.asset.importer.urdf" = {} # URDF Importer
+
+
+[settings]
+renderer.gpuEnumeration.glInterop.enabled = false # Improves startup speed.
+renderer.asyncInit = true # Don't block while renderer inits
+rtx.ecoMode.enabled = true
+rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before any delegate is actually created.
+
+exts."omni.kit.test".includeTests.0 = "*isaacsim.asset.importer.urdf*"
+
+[settings.app]
+content.emptyStageOnStart = true
+font.file = "${fonts}/OpenSans-SemiBold.ttf"
+font.size = 16
+renderer.skipWhileMinimized = true
+window.title = "URDF Importer Application"
+
+
+[settings.app.exts]
+folders.'++' = [  # Search paths for extensions.
+	"${app}/../exts",
+	"${app}/../extscache/",
+    "${app}/../extsDeprecated",
+]
+
+
+
+
+[[test]]
+enabled = false
+args = [
+	"--/app/file/ignoreUnsavedOnExit=true"
+]
+
+[[test]]
+name = "startup"
+enabled = false

@@ -1,0 +1,24 @@
+[core]
+reloadable = true
+order = 0
+
+[package]
+version = "2.2.0"
+category = "Simulation"
+title = "Omniverse URDF Importer"
+description = "URDF Importer"
+repository="https://gitlab-master.nvidia.com/isaac/urdf-importer-extension"
+authors = ["Isaac Sim Team"]
+keywords = ["urdf", "importer", "isaac"]
+changelog = "docs/CHANGELOG.md"
+readme = "docs/README.md"
+icon = "data/icon.png"
+writeTarget.kit = true
+preview_image = "data/preview.png"
+
+[dependencies]
+"isaacsim.core.deprecation_manager" = {}
+"isaacsim.asset.importer.urdf" = {}
+
+[deprecation]
+warning = "Extension deprecated since Isaac Sim 4.5.0. Replaced by isaacsim.asset.importer.urdf."
