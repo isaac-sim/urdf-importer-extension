@@ -34,13 +34,15 @@ folders.'++' = [  # Search paths for extensions.
     "${app}/../extsDeprecated",
 ]
 
-
+[settings.persistent]
+app.stage.upAxis="Z" # Set the up axis to Z for URDF Importer to align with Isaac Sim
 
 
 [[test]]
 enabled = false
 args = [
-	"--/app/file/ignoreUnsavedOnExit=true"
+	"--/app/file/ignoreUnsavedOnExit=true",
+	'--/persistent/app/stage/upAxis="Z"'
 ]
 
 [[test]]

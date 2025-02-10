@@ -75,6 +75,9 @@ rendering_1.rateLimitFrequency = 60  # Lock it to 60fps
 rendering_1.rateLimitUsePrecisionSleep = true  # Use precise sleep values to ensure threads sync
 rendering_1.syncToPresent = true  # Sync with the present tread, smooths UI updates
 
+[settings.persistent]
+app.stage.upAxis="Z" # Set the up axis to Z for URDF Importer to align with Isaac Sim
+
 [settings.app.runLoopsGlobal]
 syncToPresent = true  # Sync everything with the present thread
 

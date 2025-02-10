@@ -183,8 +183,8 @@ pxr::UsdPrim addMeshReference(UrdfGeometry geometry,
     else
     {
         CARB_LOG_INFO("Found Mesh At: %s (%s)", meshPath.c_str(), meshName.c_str());
-        pxr::SdfPath next_path = pxr::SdfPath("/meshes/" + getPathStem(meshPath.c_str()));
-        path = SimpleImport(stage, next_path.GetString(), meshPath, meshList, materialList, robotRoot);
+        std::string next_path = std::string("/meshes/") + makeValidUSDIdentifier(getPathStem(meshPath.c_str()));
+        path = SimpleImport(stage, next_path, meshPath, meshList, materialList, robotRoot);
         usdXform.GetPrim().GetReferences().AddInternalReference(path);
     }
     return usdXform.GetPrim();
@@ -900,10 +900,12 @@ void configureMimicAPI(const UrdfJoint& joint, T& jointPrim, pxr::UsdStageWeakPt
         float source_max;
         T(source_prim).GetLowerLimitAttr().Get(&source_min);
         T(source_prim).GetUpperLimitAttr().Get(&source_max);
-        jointPrim.CreateLowerLimitAttr().Set(abs(joint.mimic.multiplier) *
-                                             (source_min - 0.2f * (source_max - source_min)));
-        jointPrim.CreateUpperLimitAttr().Set(abs(joint.mimic.multiplier) *
-                                             (source_max + 0.2f * (source_max - source_min)));
+
+        float lb = joint.mimic.multiplier * (source_min - 0.2f * (source_max - source_min));
+        float ub = joint.mimic.multiplier * (source_max + 0.2f * (source_max - source_min));
+
+        jointPrim.CreateLowerLimitAttr().Set(std::min(lb, ub));
+        jointPrim.CreateUpperLimitAttr().Set(std::max(lb, ub));
     }
 }
 

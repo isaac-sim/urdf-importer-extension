@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.12] - 2025-02-06
+### Updated
+- Viewport now defaults Z as up axis
+
+### Fixed
+- Fixed dashes not supported in mesh path error
+- Mimic joint limits will now account for the sign of gear
+
 ## [2.3.11] - 2025-01-28
 ### Fixed
 - Windows signing issue
