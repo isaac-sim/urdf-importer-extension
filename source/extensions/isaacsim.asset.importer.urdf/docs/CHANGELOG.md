@@ -1,4 +1,8 @@
 # Changelog
+## [2.3.13] - 2025-02-27
+### Updated
+- Disable mesh merge Collision API
+- Fix fixed joint merge
 
 ## [2.3.12] - 2025-02-06
 ### Updated

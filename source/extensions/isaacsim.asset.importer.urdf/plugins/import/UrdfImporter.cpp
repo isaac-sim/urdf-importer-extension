@@ -542,21 +542,22 @@ void UrdfImporter::addRigidBody(std::unordered_map<std::string, pxr::UsdStageRef
         {
             setAuthoringLayer(stages["stage"], stages["physics_stage"]->GetRootLayer()->GetIdentifier());
             auto meshes_prim = stages["stage"]->GetPrimAtPath(prim.GetPath());
-            pxr::UsdPhysicsCollisionAPI::Apply(meshes_base.GetPrim());
+            // pxr::UsdPhysicsCollisionAPI::Apply(meshes_base.GetPrim());
 
             meshes_base.GetPrim().GetReferences().AddInternalReference(pxr::SdfPath(pxr::TfToken(source_name)));
             meshes_base.GetPrim().SetInstanceable(true);
 
             for (const auto& mesh_prim : meshes_prim.GetChildren())
             {
-                pxr::UsdPhysicsCollisionAPI::Apply(meshes_base.GetPrim());
+                pxr::UsdPhysicsCollisionAPI::Apply(mesh_prim.GetPrim());
                 if (link.collisions[i].geometry.type == UrdfGeometryType::MESH)
                 {
                     pxr::UsdPhysicsMeshCollisionAPI physicsMeshAPI =
-                        pxr::UsdPhysicsMeshCollisionAPI::Apply(meshes_base.GetPrim());
-                    pxr::PhysxSchemaPhysxMeshMergeCollisionAPI mergeAPI =
-                        pxr::PhysxSchemaPhysxMeshMergeCollisionAPI::Apply(meshes_base.GetPrim());
-                    mergeAPI.GetCollisionMeshesCollectionAPI().GetIncludesRel().AddTarget(meshes_base.GetPrim().GetPath());
+                        pxr::UsdPhysicsMeshCollisionAPI::Apply(mesh_prim.GetPrim());
+                    // Disable mesh merge Collision API for now
+                    // pxr::PhysxSchemaPhysxMeshMergeCollisionAPI mergeAPI =
+                    //     pxr::PhysxSchemaPhysxMeshMergeCollisionAPI::Apply(meshes_base.GetPrim());
+                    // mergeAPI.GetCollisionMeshesCollectionAPI().GetIncludesRel().AddTarget(meshes_base.GetPrim().GetPath());
                     if (config.convexDecomp == true)
                     {
                         physicsMeshAPI.CreateApproximationAttr().Set(pxr::UsdPhysicsTokens.Get()->convexDecomposition);
@@ -980,7 +981,7 @@ void UrdfImporter::addJoint(std::unordered_map<std::string, pxr::UsdStageRefPtr>
     pxr::UsdPhysicsJoint jointPrim;
     if (joint.type == UrdfJointType::FIXED)
     {
-        if (config.mergeFixedJoints)
+        if (config.mergeFixedJoints && !joint.dontCollapse)
         {
             return;
         }
@@ -1129,7 +1130,8 @@ void UrdfImporter::addLinksAndJoints(std::unordered_map<std::string, pxr::UsdSta
 
                         // if (!parentLink.softs.size() && !childLink.softs.size()) // rigid parent, rigid child
                         {
-                            if (urdfJoint.type != UrdfJointType::FIXED || !config.mergeFixedJoints)
+                            if (urdfJoint.type != UrdfJointType::FIXED || !config.mergeFixedJoints ||
+                                urdfJoint.dontCollapse)
                             {
 
                                 addRigidBody(stages, childLink, poseLinkToWorld, robotPrim, robot);

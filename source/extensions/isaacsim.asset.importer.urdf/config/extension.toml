@@ -10,7 +10,7 @@
 
 [package]
 title = "Urdf Importer Extension"
-version = "2.3.12"  # Semantic Versionning is used: https://semver.org/
+version = "2.3.13"  # Semantic Versionning is used: https://semver.org/
 category = "Simulation"
 description = "URDF Importer"
 repository = ""

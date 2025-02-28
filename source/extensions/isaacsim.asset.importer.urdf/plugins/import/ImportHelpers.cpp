@@ -117,13 +117,18 @@ void mergeFixedChildLinks(const KinematicChain::Node& parentNode, UrdfRobot& rob
     {
         // Depth first
         mergeFixedChildLinks(*childNode, robot);
+        auto joint = robot.joints.at(childNode->parentJointName_);
+        auto& urdfChildLink = robot.links.at(childNode->linkName_);
 
-        if (robot.joints.at(childNode->parentJointName_).type == UrdfJointType::FIXED)
+        // Only merge if the joint is FIXED, not marked with dontCollapse, AND
+        // the child link has no inertia and no colliders
+        if ((joint.type == UrdfJointType::FIXED) && !joint.dontCollapse)
         {
+            CARB_LOG_WARN("link %s has no body properties (mass, inertia, or collisions) and is being merged into %s",
+                          childNode->linkName_.c_str(), parentNode.linkName_.c_str());
             auto& urdfParentLink = robot.links.at(parentNode.linkName_);
-            auto& urdfChildLink = robot.links.at(childNode->linkName_);
             // The pose of the child with respect to the parent is defined at the joint connecting them
-            Transform poseChildToParent = robot.joints.at(childNode->parentJointName_).origin;
+            Transform poseChildToParent = joint.origin;
             // Add a reference to the merged link
             urdfParentLink.mergedChildren[childNode->linkName_] = poseChildToParent;
             // At least one of the link masses has to be defined

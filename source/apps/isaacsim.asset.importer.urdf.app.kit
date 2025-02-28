@@ -20,6 +20,17 @@ rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before
 
 exts."omni.kit.test".includeTests.0 = "*isaacsim.asset.importer.urdf*"
 
+[settings.app.viewport]
+defaultCamPos.x = 5
+defaultCamPos.y = 5
+defaultCamPos.z = 5
+defaults.fillViewport = false # default to not fill viewport
+grid.enabled = true
+outline.enabled = true
+boundingBoxes.enabled = false
+show.camera=false
+show.lights=false
+
 [settings.app]
 content.emptyStageOnStart = true
 font.file = "${fonts}/OpenSans-SemiBold.ttf"
@@ -36,7 +47,18 @@ folders.'++' = [  # Search paths for extensions.
 ]
 
 [settings.persistent]
-app.stage.upAxis="Z" # Set the up axis to Z for URDF Importer to align with Isaac Sim
+app.primCreation.DefaultXformOpOrder = "xformOp:translate, xformOp:orient, xformOp:scale"
+app.primCreation.DefaultXformOpType = "Scale, Orient, Translate"
+app.primCreation.typedDefaults.camera.clippingRange = [0.01, 10000000.0] # Meters default
+app.primCreation.DefaultXformOpPrecision = "Double"
+app.primCreation.DefaultRotationOrder = "ZYX"
+app.primCreation.PrimCreationWithDefaultXformOps = true
+app.stage.timeCodeRange = [0, 1000000]
+app.stage.upAxis = "Z" # Isaac Sim default Z up
+app.viewport.camMoveVelocity = 0.05 # Meters default
+app.viewport.gizmo.scale = 0.01 # Meters default
+app.viewport.grid.scale = 1.0 # Meters default
+resourcemonitor.timeBetweenQueries = 100 # improves performance
 
 
 [[test]]

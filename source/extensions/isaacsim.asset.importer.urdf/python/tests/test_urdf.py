@@ -734,6 +734,16 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
     # test collision from visuals
     async def test_collision_from_visuals(self):
 
+        def IsVisualGeom(prim):
+            return (
+                pxr.UsdGeom.Mesh(prim)
+                or pxr.UsdGeom.Sphere(prim)
+                or pxr.UsdGeom.Capsule(prim)
+                or pxr.UsdGeom.Cylinder(prim)
+                or pxr.UsdGeom.Cube(prim)
+                or pxr.UsdGeom.Cone(prim)
+            )
+
         # import a urdf file without collision
         urdf_path = os.path.abspath(self._extension_path + "/data/urdf/tests/test_collision_from_visuals.urdf")
         stage = omni.usd.get_context().get_stage()
@@ -749,34 +759,74 @@ class TestUrdf(omni.kit.test.AsyncTestCase):
         self.assertNotEqual(prim.GetPath(), Sdf.Path.emptyPath)
 
         # ensure the link collision prim exists and has the collision API applied.
-        base_link = stage.GetPrimAtPath("/test_collision_from_visuals/root_link/collisions")
-        self.assertNotEqual(base_link.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(base_link.GetAttribute("physics:collisionEnabled").Get())
+        base_link = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/root_link/collisions"),
+                pxr.Usd.TraverseInstanceProxies(),
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(base_link[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(base_link[0].GetAttribute("physics:collisionEnabled").Get())
 
         # ensure the link_1 collision prim exists and has the collision API applied.
-        link_1 = stage.GetPrimAtPath("/test_collision_from_visuals/link_1/collisions")
-        self.assertNotEqual(link_1.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(link_1.GetAttribute("physics:collisionEnabled").Get())
+        link_1 = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/link_1/collisions"), pxr.Usd.TraverseInstanceProxies()
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(link_1[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(link_1[0].GetAttribute("physics:collisionEnabled").Get())
 
         # ensure the link_2 collision prim exists and has the collision API applied.
-        link_2 = stage.GetPrimAtPath("/test_collision_from_visuals/link_2/collisions")
-        self.assertNotEqual(link_2.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(link_2.GetAttribute("physics:collisionEnabled").Get())
+        link_2 = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/link_2/collisions"), pxr.Usd.TraverseInstanceProxies()
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(link_2[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(link_2[0].GetAttribute("physics:collisionEnabled").Get())
 
         # ensure the palm_link collision prim exists and has the collision API applied.
-        palm_link = stage.GetPrimAtPath("/test_collision_from_visuals/palm_link/collisions")
-        self.assertNotEqual(palm_link.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(palm_link.GetAttribute("physics:collisionEnabled").Get())
+        palm_link = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/palm_link/collisions"),
+                pxr.Usd.TraverseInstanceProxies(),
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(palm_link[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(palm_link[0].GetAttribute("physics:collisionEnabled").Get())
 
         # ensure the finger_link_1 collision prim exists and has the collision API applied.
-        finger_link_1 = stage.GetPrimAtPath("/test_collision_from_visuals/finger_link_1/collisions")
-        self.assertNotEqual(finger_link_1.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(finger_link_1.GetAttribute("physics:collisionEnabled").Get())
+        finger_link_1 = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/finger_link_1/collisions"),
+                pxr.Usd.TraverseInstanceProxies(),
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(finger_link_1[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(finger_link_1[0].GetAttribute("physics:collisionEnabled").Get())
 
         # ensure the finger_link_2 collision prim exists and has the collision API applied.
-        finger_link_2 = stage.GetPrimAtPath("/test_collision_from_visuals/finger_link_2/collisions")
-        self.assertNotEqual(finger_link_2.GetPath(), Sdf.Path.emptyPath)
-        self.assertTrue(finger_link_2.GetAttribute("physics:collisionEnabled").Get())
+        finger_link_2 = [
+            child_prim
+            for child_prim in pxr.Usd.PrimRange(
+                stage.GetPrimAtPath("/test_collision_from_visuals/finger_link_2/collisions"),
+                pxr.Usd.TraverseInstanceProxies(),
+            )
+            if IsVisualGeom(child_prim)
+        ]
+        self.assertNotEqual(finger_link_2[0].GetPath(), Sdf.Path.emptyPath)
+        self.assertTrue(finger_link_2[0].GetAttribute("physics:collisionEnabled").Get())
 
         # Start Simulation and wait
         self._timeline.play()
