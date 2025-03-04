@@ -1,4 +1,7 @@
 # Changelog
+## [2.3.14] - 2025-03-04
+### Fixed
+- Error when selecting a folder ending with .urdf
 ## [2.3.13] - 2025-02-27
 ### Updated
 - Disable mesh merge Collision API

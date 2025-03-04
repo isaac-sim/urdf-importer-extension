@@ -61,7 +61,10 @@ EXTENSION_NAME = "URDF Importer"
 
 def is_urdf_file(path: str):
     _, ext = os.path.splitext(path.lower())
-    return ext in [".urdf", ".URDF"]
+    result, entry = omni.client.stat(path)
+    if result == omni.client.Result.OK:
+        return ext in [".urdf", ".URDF"] and not entry.flags & omni.client.ItemFlags.CAN_HAVE_CHILDREN
+    return False
 
 
 def on_filter_item(item) -> bool:
@@ -197,8 +200,6 @@ class UrdfImporter(object):
             )
             if result:
                 self._on_urdf_loaded()
-        else:
-            carb.log_warn(f"Invalid path to URDF: {path}")
 
     @property
     def config(self):
